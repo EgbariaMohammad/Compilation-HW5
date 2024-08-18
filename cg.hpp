@@ -23,7 +23,7 @@ public:
 
 	//writes command to the buffer, returns its location in the buffer
 	int emit(const std::string &command);
-	
+
 	//prints the content of the code buffer to stdout
 	void printCodeBuffer();
 

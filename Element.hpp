@@ -4,7 +4,7 @@
 //
 // Element.hpp
 
-#pragma once 
+#pragma once
 
 class Element
 {
@@ -19,7 +19,7 @@ public:
     Element(string name, string type, int pos, string var = "", bool isAParameter = false);
 
     Element(const Element&) = default;
-    ~Element() = default; 
+    ~Element() = default;
 
     const string &getName() const;
     string returnVar() const;
@@ -31,15 +31,15 @@ public:
 
 class Function : public Element {
 private:
-    string returnType;              // in case this is a function ,otherwise its value ""
-    vector<string> parametersTypes; // in case this is a function ,otherwise its Empty
+    string returnType;
+    vector<string> parametersTypes;
 
 public:
-    Function(string name, string type, int pos, string returnType = "", 
+    Function(string name, string type, int pos, string returnType = "",
         vector<string> parametersTypes = vector<string>(), string var = "", bool isParam = false);
 
     Function(const Element&) = default;
-    ~Function() = default; 
+    ~Function() = default;
 
     string getReturnType() const;
     vector<string> &getParametersTypes();

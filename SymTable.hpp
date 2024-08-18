@@ -4,7 +4,7 @@
 //
 // SymTable.hpp  - SymbolTable
 
-#pragma once 
+#pragma once
 
 #include "Element.hpp"
 #include <vector>
@@ -18,7 +18,7 @@ public:
     SymTable() = default;
     SymTable(const& SymTable& table) = delete;
     ~SymTable() = default;
-    
+
     int AddElement(const Element& e);
     string FunctionReturnType(const string& name) const;
     bool MainExists() const;
@@ -32,6 +32,6 @@ public:
 
     vector<string> getVectorOfParametersReturnType(const string& name) const;
     vector<string> getVectorOfParametersInferredFromSymTable() const;
-    vector<string> getVectorOfParametersIdsInferredFromSymTable() const; 
-    
+    vector<string> getVectorOfParametersIdsInferredFromSymTable() const;
+
 };

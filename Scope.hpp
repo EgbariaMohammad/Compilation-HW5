@@ -4,7 +4,7 @@
 //
 // Scope.hpp
 
-#pragma once 
+#pragma once
 #include "SymTable.hpp"
 #include "Element.hpp"
 

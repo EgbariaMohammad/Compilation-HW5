@@ -23,14 +23,14 @@ int CodeBuffer::emit(const string &s){
 }
 
 void CodeBuffer::printCodeBuffer(){
-	for (std::vector<string>::const_iterator it = buffer.begin(); it != buffer.end(); ++it) 
+	for (std::vector<string>::const_iterator it = buffer.begin(); it != buffer.end(); ++it)
 	{
 		cout << *it << endl;
     }
 }
 
 // ******** Methods to handle the global section ********** //
-void CodeBuffer::emitGlobal(const std::string& dataLine) 
+void CodeBuffer::emitGlobal(const std::string& dataLine)
 {
 	globalDefs.push_back(dataLine);
 }
