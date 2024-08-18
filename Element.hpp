@@ -16,17 +16,16 @@ private:
     bool isParameter;
 
 public:
-    Element(string name, string type, int pos, string var = "", bool isAParameter = false)
-        : name(name), type(type), pos(pos), var(var), isParameter(isAParameter) {}
+    Element(string name, string type, int pos, string var = "", bool isAParameter = false);
 
     Element(const Element&) = default;
     ~Element() = default; 
 
-    const string &getName() const { return name; }
-    string returnVar() const { return this->var; }
-    bool isParam() const { return isParameter; }
-    string getType() const { return type; }
-    int getPos() const { return pos; }
+    const string &getName() const;
+    string returnVar() const;
+    bool isParam() const;
+    string getType() const;
+    int getPos() const;
 };
 
 
@@ -36,13 +35,12 @@ private:
     vector<string> parametersTypes; // in case this is a function ,otherwise its Empty
 
 public:
-    Function(string name, string type, int pos, string returnType = "", vector<string> parametersTypes = vector<string>(), string var = "", bool isParam = false)
-        : Element(name, type, pos, var, isParam), returnType(returnType), parametersTypes(parametersTypes) {}
+    Function(string name, string type, int pos, string returnType = "", 
+        vector<string> parametersTypes = vector<string>(), string var = "", bool isParam = false);
 
     Function(const Element&) = default;
     ~Function() = default; 
 
-    string getReturnType() const { return returnType; }
-    vector<string> &getParametersTypes()  { return parametersTypes; }
-
+    string getReturnType() const;
+    vector<string> &getParametersTypes();
 };
