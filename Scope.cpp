@@ -5,13 +5,18 @@
 // Scope.cpp
 
 #include "Scope.hpp"
+#include "Element.hpp"
+#include "hw3_output.hpp"
+#include <vector>
+#include <string>
 
-Scope::Scope(int current_offset, string type, string returnType = "") : current_offset(current_offset), type(type), returnType(returnType) {}
+using namespace std;
 
-void Scope::addInScope(string name, string type, int pos, string returnType = "",
-                vector<string> parametersTypes = vector<string>(), string var = "NOT_PARAM", bool isParam = false)
+Scope::Scope(int current_offset, string type, string returnType) : current_offset(current_offset), type(type), returnType(returnType) {}
+
+void Scope::addInScope(const shared_ptr<Element>& e)
 {
-    symTable.AddElement(Element(name, type, pos, returnType, parametersTypes, var, isParam));
+    symTable.AddElement(e);
 }
 
 bool Scope::mainExistsInScope() const
@@ -20,7 +25,7 @@ bool Scope::mainExistsInScope() const
 }
 
 bool Scope::varExists(const string& name) const
-{    
+{
     return symTable.SymbolExists(name);
 }
 
@@ -78,7 +83,7 @@ vector<string> Scope::getVectorOfParametersIdsInferredFromSymTable() const
     return symTable.getVectorOfParametersIdsInferredFromSymTable();
 }
 
-bool Scope::checkIfOneOfTheseAlreadyDefined(const vector<string> &vec, const string &result) const
+bool Scope::checkIfOneOfTheseAlreadyDefined(const vector<string> &vec, string &result) const
 {
     return symTable.checkIfOneOfTheseAlreadyDefined(vec, result);
 }

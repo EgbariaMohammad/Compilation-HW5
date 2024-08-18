@@ -8,21 +8,26 @@
 
 #include "Element.hpp"
 #include <vector>
+#include <string>
+#include <memory>
+
+using namespace std;
 
 class SymTable
 {
 private:
-    vector<Element> elements;
+    vector<shared_ptr<Element>> elements;
 
 public:
     SymTable() = default;
-    SymTable(const& SymTable& table) = delete;
+    SymTable(const SymTable& table) = delete;
     ~SymTable() = default;
 
-    int AddElement(const Element& e);
+
+    int AddElement(const shared_ptr<Element>& e);
     string FunctionReturnType(const string& name) const;
     bool MainExists() const;
-    bool checkIfOneOfTheseAlreadyDefined(const vector<string> &vec, const string &result) const;
+    bool checkIfOneOfTheseAlreadyDefined(const vector<string>& vec, string& result) const;
     string ElementType(const string& name) const;
 
     string ElementVar(const string& var) const;

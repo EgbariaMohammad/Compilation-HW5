@@ -6,6 +6,13 @@
 
 #pragma once
 
+#include <vector>
+#include <string>
+#include <iostream>
+
+using namespace std;
+
+
 class Element
 {
 private:
@@ -18,8 +25,9 @@ private:
 public:
     Element(string name, string type, int pos, string var = "", bool isAParameter = false);
 
-    Element(const Element&) = default;
-    ~Element() = default;
+
+    Element(const Element& e) = default;
+    virtual ~Element() = default;
 
     const string &getName() const;
     string returnVar() const;
@@ -35,12 +43,11 @@ private:
     vector<string> parametersTypes;
 
 public:
-    Function(string name, string type, int pos, string returnType = "",
-        vector<string> parametersTypes = vector<string>(), string var = "", bool isParam = false);
+    Function(string name, string type, int pos, string returnType = "", vector<string> parametersTypes = vector<string>(), string var = "", bool isParam = false);
 
-    Function(const Element&) = default;
+    Function(const Function&) = default;
     ~Function() = default;
 
     string getReturnType() const;
-    vector<string> &getParametersTypes();
+    vector<string>& getParametersTypes();
 };

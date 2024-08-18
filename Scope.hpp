@@ -7,18 +7,21 @@
 #pragma once
 #include "SymTable.hpp"
 #include "Element.hpp"
+#include <vector>
+#include <string>
+
+using namespace std;
 
 class Scope
 {
     int current_offset;
-    SymbolTable symTable;
+    SymTable symTable;
     string type;
     string returnType; // in case this is a function scope ,otherwise its value ""
 public:
     Scope(int current_offset, string type, string returnType = "");
 
-    void addInScope(string name, string type, int pos, string returnType = "",
-                    vector<string> parametersTypes = vector<string>(), string var = "NOT_PARAM", bool isParam = false);
+    void addInScope(const shared_ptr<Element>& e);
     bool mainExistsInScope() const;
     bool varExists(const string& name) const;
     void printScope() const;
@@ -35,5 +38,5 @@ public:
     vector<string> getVectorOfParametersReturnType(const string& name) const;
     vector<string> getVectorOfParametersInferredFromSymTable() const;
     vector<string> getVectorOfParametersIdsInferredFromSymTable() const;
-    bool checkIfOneOfTheseAlreadyDefined(const vector<string> &vec, const string &result) const;
+    bool checkIfOneOfTheseAlreadyDefined(const vector<string> &vec, string &result) const;
 };

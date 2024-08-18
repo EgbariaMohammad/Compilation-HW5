@@ -18,19 +18,19 @@ using namespace std;
 
 class Node
 {
-public:
     string type;
+public:
     Node(const string& type) : type(type) {}
     virtual ~Node();
-    virtual int getValue() cosnt = 0;
+    const string& getType() const { return type; }
 };
 
 class Num : public Node
 {
     int val;
 public:
-    Num(const string& val) : Node("Num"), val(atoi(val)) {}
-    int getValue() const override { return val; }
+    Num(const string& value) : Node("Num"), val(std::atoi(value.c_str())) {}
+    int getValue() const { return val; }
 };
 
 class myString : public Node
@@ -38,5 +38,5 @@ class myString : public Node
     string val;
 public:
     myString(const string& val) : Node("STRING"), val(val) {}
-    string getValue() const override { return val; }
+    string getStringValue() const { return val; }
 };
