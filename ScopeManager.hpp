@@ -13,10 +13,19 @@
 
 using namespace std;
 
+enum ScopeType
+{
+    GLOBAL,
+    FUNCTION,
+    WHILE,
+    IF,
+    BLOCK,
+};
+
 class ScopeManager
 {
     stack<int> offsets;
-    vector<unique_ptr<SymTable>> scopes;
+    vector<pair<unique_ptr<SymTable>, ScopeType>> scopes;
     ScopeManager() = default;
 public:
     static ScopeManager& getInstance()
@@ -24,12 +33,17 @@ public:
         static ScopeManager instance;
         return instance;
     }
-    void pushScope();
+    void pushScope(ScopeType type);
     void popScope();
     void insertSymbol(const shared_ptr<Symbol>& e);
     int findSymbol(const string& name) const;
+    int findSymbolInCurrentScope(const string& name) const;
+    shared_ptr<Symbol> getSymbol(const string& name) const;
+
     int getOffset() const;
     void printScope() const;
+    ScopeType getLatestScopeType() const;
+    bool searchIfInScope(ScopeType type) const;
 
     class EmptyManager : public exception {};
 };

@@ -13,16 +13,16 @@
 
 using namespace std;
 
-ScopeManager::ScopeManager() : offsets(stack<int>()), scopes(vector<unique_ptr<SymTable>>())
+ScopeManager::ScopeManager() : offsets(stack<int>()), scopes(vector<pair<unique_ptr<SymTable>, ScopeType>>())
 {
     offsets.push(0);
-    pushScope();
+    pushScope(ScopeType::GLOBAL);
 }
 
-void ScopeManager::pushScope()
+void ScopeManager::pushScope(ScopeType type)
 {
     offsets.push(0);
-    scopes.push_back(std::unique_ptr<SymTable>(new SymTable)); // replace with make unique
+    scopes.push_back({std::unique_ptr<SymTable>(new SymTable), type}); // replace with make unique
 }
 
 void ScopeManager::popScope()
@@ -35,7 +35,7 @@ void ScopeManager::popScope()
 
 void ScopeManager::insertSymbol(const shared_ptr<Symbol>& e)
 {
-    scopes.back()->AddSymbol(e);
+    scopes.back().first->AddSymbol(e);
     offsets.top()++;
 }
 
@@ -43,11 +43,17 @@ int ScopeManager::findSymbol(const string& name) const
 {
     for (int i = scopes.size() - 1; i >= 0; i--)
     {
-        int index = scopes[i]->findSymbol(name);
+        int index = scopes[i].first->findSymbol(name);
         if (index != -1)
             return index;
     }
     return -1;
+}
+
+int ScopeManager::findSymbolInCurrentScope(const string& name) const
+{
+    int i = scopes.size() - 1;
+    return scopes[i].first->findSymbol(name);
 }
 
 int ScopeManager::getOffset() const
@@ -61,6 +67,30 @@ void ScopeManager::printScope() const
     for (const auto& scope : scopes)
     {
         std::cout << "Scope number " << scopeNum++ << ":\n";
-        scope->printSymTable();
+        scope.first->printSymTable();
     }
+}
+
+ScopeType ScopeManager::getLatestScopeType() const {
+    return scopes.back().second;
+}
+
+shared_ptr<Symbol> ScopeManager::getSymbol(const string& name) const
+{
+    for (int i = scopes.size() - 1; i >= 0; i--)
+    {
+        shared_ptr<Symbol> symbol = scopes[i].first->getSymbol(name);
+        if (symbol != nullptr)
+            return symbol;
+    }
+    return nullptr;
+}
+
+bool ScopeManager::searchIfScopeOpen(ScopeType type) const {
+    for (int i = scopes.size() - 1; i >= 0; i--)
+    {
+        if (scopes[i].second == type)
+            return true;
+    }
+    return false;
 }
