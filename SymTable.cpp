@@ -25,3 +25,13 @@ void SymTable::printSymTable() const
     for (const auto &x : elements)
         output::printID(x->getName(), x->getOffset(), x->getType());
 }
+
+shared_ptr<Symbol> SymTable::getSymbol(const string& elementName)
+{
+    for (const auto& x : elements)
+    {
+        if (x->getName() == elementName)
+            return x;
+    }
+    return nullptr;
+}

@@ -6,6 +6,7 @@
 	#include "cg.hpp"
 	ScopeManager scopeManager = ScopeManager::getInstance();
 	CodeGenerator codeGenerator = CodeGenerator::getInstance();
+	CodeBuffer codeBuffer = CodeBuffer::instance();
 	int curr_index=0;
 	vector<bool> hasBreak;
 	vector<string> next_label;
@@ -63,7 +64,7 @@ Statements : Statement | Statements Statement;
 
 Statement : LBRACE
 	{
-		scopeManager.pushScope();
+		scopeManager.pushScope(ScopeType::BLOCK);
 	}
 	Statements RBRACE FINISH
 
@@ -75,18 +76,6 @@ Statement : LBRACE
             exit(0);
 		}
 
-		/* if (scopes.back().getType() == "FUNCTION" && scopes.back().getCurrentOffset() < 0){
-				scopes.back().setCurrentOffset(offsets.back());
-		}
-		for(int i=scopesNum; i>=0; i--)
-		{
-			if(scopes[i].varExists($3->type)){
-				output::errorDef(yylineno,$3->type);
-				exit(0);
-			}
-		}
-		*/
-
 		int variableOffset = scopeManager.getOffset();
 		shared_ptr<Symbol> newSymbol = make_shared<Symbol>($2->getName(), $1->getType(), variableOffset);
 		scopeManager.insertSymbol(newSymbol);
@@ -95,17 +84,8 @@ Statement : LBRACE
 		string varReg = getNewRegister();
 		string allocCode = varReg + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
 		string storeValCode = "store i32 0, i32* " + varReg;
-		CodeBuffer::instance().emit(allocCode);
-		CodeBuffer::instance().emit(storeValCode);
-
-		/* string var = CodeBuffer::instance().newTemp();
-		scopes.back().addInScope($2->type, $1->type, offset, "", vector<string>(), var);
-		// var is a pointer , so when reading value ==> load , when assign ==> store
-		string s = var + " = getelementptr i32, i32* %stack_vars, i32 " + std::to_string(curr_index);
-		CodeBuffer::instance().emit(s);
-		CodeBuffer::instance().emit("store i32 0, i32* " + var);
-		curr_index++;
-		$2->var = var; */
+		codeBuffer.emit(allocCode);
+		codeBuffer.emit(storeValCode);
 	}
 
 	| Type ID ASSIGN Exp SC
@@ -130,44 +110,12 @@ Statement : LBRACE
             exit(0);
 		}
 
-		/* int size = scopes.size()-1;
-		for(int i=size; i>=0; i--){
-			if(scopes[i].varExists($3->type)){
-				output::errorDef(yylineno,$3->type);
-				exit(0);
-			}
-		} */
-
 		// if we get here all is ok!, add the variable to the symbol table
 		int variableOffset = scopeManager.getOffset();
 		shared_ptr<Symbol> newSymbol = make_shared<Symbol>($2->getName(), $1->getType(), variableOffset);
 		scopeManager.insertSymbol(newSymbol);
 		string varOffset = codeGenerator.freshVariable(variableOffset);
 
-		/* if (!scopes.back().getType().compare("FUNCTION") && scopes.back().getCurrentOffset() < 0)
-		{
-			scopes.back().setCurrentOffset(offsets.back());
-		}
-
-		int offset = offsets.back();
-		string var = CodeBuffer::instance().newTemp();
-		scopes.back().addInScope($2->type, $1->type, offset, "", vector<string>(), var);
-		// var is a pointer , so when reading value ==> load , when assign ==> store
-		string s = var + " = getelementptr i32, i32* %stack_vars, i32 " + std::to_string(curr_index);
-		curr_index++;
-		CodeBuffer::instance().emit(s);
-		$2->var = var;
-		string store_cmd;
-		bool expBool = !$1->type.compare("BOOL");
-		if (expBool)
-		{
-			string zeroExtentionOfBool = CodeBuffer::instance().newTemp();
-			CodeBuffer::instance().emit(zeroExtentionOfBool + "= zext i1 " + $4->var + " to i32");
-			store_cmd = "store i32 " + zeroExtentionOfBool + ", i32* " + var;
-		}
-		else
-			store_cmd = ;
-		CodeBuffer::instance().emit(store_cmd); */
 	}
 
 	| ID ASSIGN Exp SC
@@ -178,67 +126,33 @@ Statement : LBRACE
 			exit(0);
 		}
 		// now check if we are assining the right type to the variable!
-		string typeOfId = scopes[i].getElementType($1->type); // type of variable;
+		shared_ptr<Symbol> variable = scopeManager.getSymbol($1->getName());
+		if(variabe->getType() == "FUNCTION")
+		{
+			output::errorUndef(yylineno, variabe->getName());
+			exit(0);
+		}
+		string variableType = variable->getType(); // type of variable;
 		bool expInt = $3->getType() == "INT";
 		bool expByte = $3->getType() == "BYTE" ;
 		bool expBool = $3->type == "BOOL";
 		bool idInt = $1->getType() == "INT";
 
-		if($3->getType() != typeOfId and !(idInt and expByte)){
+		if($3->getType() != variableType and !(idInt and expByte)){
 			output::errorMismatch(yylineno);
 			exit(0);
 		}
-		int variableOffset = scopeManager.getOffset();
-		string varOffset = codeGenerator.freshVariable(variableOffset);
-
-		/*
-		// var is a pointer , so when reading value ==> load , when assign ==> store
-		string var = $1->var;
-		string var_val = scopes[i].returnVar($1->type); // ...
-
-		string store_cmd;
-		if (expBool)
-		{
-			string zeroExtentionOfBool = CodeBuffer::instance().newTemp();
-			CodeBuffer::instance().emit(zeroExtentionOfBool + "= zext i1 " + $3->var + " to i32");
-			store_cmd = "store i32 " + zeroExtentionOfBool + ", i32* " + var_val;
-		}
-		else
-			store_cmd = "store i32 " + $3->var + ", i32* " + var_val;
-		CodeBuffer::instance().emit(store_cmd); */
+		string varOffset = codeGenerator.freshVariable(variable->getOffset());
 	}
 
-	| Call SC
-	{
-		/* bool existsInAfunctionScope = false;
-		int i = scopes.size() - 1;
-		for (; i >= 0; i--)
-		{
-			if (!scopes[i].getType().compare("FUNCTION"))
-			{
-				existsInAfunctionScope = true;
-				break;
-			}
-		}
-		if (existsInAfunctionScope)
-		{
-			if (scopes[i].getReturnType().compare("VOID"))
-			{
-				output::errorMismatch(yylineno);
-				exit(0);
-			}
-		} */
-	}
-	| RETURN SC
-	{
-		CodeBuffer::instance().emit("ret i32 0");
-	}
+	| Call SC {}
+	| RETURN SC { codeBuffer.emit("ret i32 0"); }
 
 	| IF LPAREN Exp A RPAREN M Statement T %prec temp FINISH
 	{
 
 		auto br_list = br_trueLabel_Lists[br_trueLabel_Lists.size() - 1];
-		CodeBuffer::instance().bpatch(br_list, labels[labels.size() - 1]);
+		codeBuffer.bpatch(br_list, labels[labels.size() - 1]);
 		labels.pop_back();
 
 		br_trueLabel_Lists.pop_back();
@@ -257,16 +171,16 @@ Statement : LBRACE
 		vector<pair<int, BranchLabelIndex>> global_break2;
 		global_break.push_back(global_break2);
 		string branch_cmd_exp1 = "br i1 " + $4->var + ", label @, label @";
-		int br_exp1_address = CodeBuffer::instance().emit(branch_cmd_exp1);
-		auto exp_1_newTrueList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
-		auto exp_1_newFalseList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp1_address, SECOND));
-		string true_label = CodeBuffer::instance().genLabel();
-		int br_trueLabel_address = CodeBuffer::instance().emit("br label @");
-		auto br_tr = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_trueLabel_address, FIRST));
+		int br_exp1_address = codeBuffer.emit(branch_cmd_exp1);
+		auto exp_1_newTrueList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
+		auto exp_1_newFalseList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, SECOND));
+		string true_label = codeBuffer.genLabel();
+		int br_trueLabel_address = codeBuffer.emit("br label @");
+		auto br_tr = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_trueLabel_address, FIRST));
 		br_trueLabel_Lists.push_back(br_tr);
-		next_label2 = CodeBuffer::instance().genLabel();
-		CodeBuffer::instance().bpatch(exp_1_newTrueList, next_label2);
-		CodeBuffer::instance().bpatch(exp_1_newFalseList, true_label);
+		next_label2 = codeBuffer.genLabel();
+		codeBuffer.bpatch(exp_1_newTrueList, next_label2);
+		codeBuffer.bpatch(exp_1_newFalseList, true_label);
 	} RPAREN
 	{
 		if ($4->type.compare("BOOL"))
@@ -280,15 +194,15 @@ Statement : LBRACE
 	} Statement
 	{
 		string branch_cmd_exp1 = "br label @";
-		int br_exp1_address = CodeBuffer::instance().emit(branch_cmd_exp1);
-		auto exp_1_newTrueList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
-		CodeBuffer::instance().bpatch(exp_1_newTrueList, next_label[next_label.size() - 1]);
-		next_label2 = CodeBuffer::instance().genLabel();
+		int br_exp1_address = codeBuffer.emit(branch_cmd_exp1);
+		auto exp_1_newTrueList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
+		codeBuffer.bpatch(exp_1_newTrueList, next_label[next_label.size() - 1]);
+		next_label2 = codeBuffer.genLabel();
 		auto br_list = br_trueLabel_Lists[br_trueLabel_Lists.size() - 1];
-		CodeBuffer::instance().bpatch(br_list, next_label2);
+		codeBuffer.bpatch(br_list, next_label2);
 		if (hasBreak[hasBreak.size() - 1])
 		{
-			CodeBuffer::instance().bpatch(global_break[global_break.size() - 1], next_label2);
+			codeBuffer.bpatch(global_break[global_break.size() - 1], next_label2);
 			vector<pair<int, BranchLabelIndex>> global_break2;
 			global_break[global_break.size() - 1] = global_break2;
 			hasBreak[hasBreak.size() - 1] = false;
@@ -304,59 +218,30 @@ Statement : LBRACE
 		{
 			global_break.pop_back();
 		}
-
 		next_label.pop_back();
 	}
 	| BREAK SC
 	{
-		bool inWhileOrSwitch = false;
-		for (int i = scopes.size() - 1; i >= 0; i--)
-		{
-			if (!scopes[i].getType().compare("WHILE") || !scopes[i].getType().compare("SWITCH"))
-			{
-				inWhileOrSwitch = true;
-				break;
-			}
-		}
-		if (!inWhileOrSwitch)
+		bool inWhile = scopeManager.searchIfScopeOpen(ScopeType::WHILE);
+		if (!inWhile)
 		{
 			output::errorUnexpectedBreak(yylineno);
 			exit(0);
 		}
-
-		string branch_cmd_exp1 = "br label @";
-		int br_exp1_address = CodeBuffer::instance().emit(branch_cmd_exp1);
-		auto array_global = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
-		global_break[global_break.size() - 1] = CodeBuffer::instance().merge(global_break[global_break.size() - 1], array_global);
-		hasBreak[hasBreak.size() - 1] = true;
+		/* string exit_while_label = scope_manager.tables_stack.back()->end_label;
+		codeBuffer.emit("br label %" + exit_while_label); */
 	}
 
 	| CONTINUE SC
 	{
-		bool inWhile = false;
-		int count =0;
-		for (int i = scopes.size() - 1; i >= 0; i--)
-		{
-			if (!scopes[i].getType().compare("WHILE"))
-			{
-				inWhile = true;
-				break;
-			}
-			if (!scopes[i].getType().compare("IF") ||!scopes[i].getType().compare("ELSE"))
-			{
-				count++;
-			}
-		}
+		bool inWhile = scopeManager.searchIfScopeOpen(ScopeType::WHILE);
 		if (!inWhile)
 		{
 			output::errorUnexpectedContinue(yylineno);
 			exit(0);
 		}
-
-		string branch_cmd_exp1 = "br label @";
-		int br_exp1_address = CodeBuffer::instance().emit(branch_cmd_exp1);
-		auto exp_1_newTrueList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
-		CodeBuffer::instance().bpatch(exp_1_newTrueList, next_label[next_label.size() - 1-count]);
+		/* string restart_while_label = scope_manager.tables_stack.back()->start_label;
+		CodeBuffer::instance().emit("br label %" + restart_while_label); */
 	};
 
 	FINISH:
@@ -367,28 +252,28 @@ Statement : LBRACE
 A:
 {
 	string branch_cmd_exp1 = "br i1 " + $0->var + ", label @, label @";
-	int br_exp1_address = CodeBuffer::instance().emit(branch_cmd_exp1);
-	auto exp_1_newTrueList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
-	auto exp_1_newFalseList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp1_address, SECOND));
-	string true_label = CodeBuffer::instance().genLabel();
-	int br_trueLabel_address = CodeBuffer::instance().emit("br label @");
-	auto br_tr = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_trueLabel_address, FIRST));
+	int br_exp1_address = codeBuffer.emit(branch_cmd_exp1);
+	auto exp_1_newTrueList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
+	auto exp_1_newFalseList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, SECOND));
+	string true_label = codeBuffer.genLabel();
+	int br_trueLabel_address = codeBuffer.emit("br label @");
+	auto br_tr = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_trueLabel_address, FIRST));
 	br_trueLabel_Lists.push_back(br_tr);
-	string next_label_val = CodeBuffer::instance().genLabel();
+	string next_label_val = codeBuffer.genLabel();
 	next_label.push_back(next_label_val);
-	CodeBuffer::instance().bpatch(exp_1_newTrueList, next_label[next_label.size() - 1]);
-	CodeBuffer::instance().bpatch(exp_1_newFalseList, true_label);
+	codeBuffer.bpatch(exp_1_newTrueList, next_label[next_label.size() - 1]);
+	codeBuffer.bpatch(exp_1_newFalseList, true_label);
 };
 
 T:
 {
 	string branch_str = "br label @";
-	int br_exp1_address = CodeBuffer::instance().emit(branch_str);
-	auto exp_1_newTrueList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
-	next_label2 = CodeBuffer::instance().genLabel();
+	int br_exp1_address = codeBuffer.emit(branch_str);
+	auto exp_1_newTrueList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
+	next_label2 = codeBuffer.genLabel();
 	auto br_list = br_trueLabel_Lists[br_trueLabel_Lists.size() - 1];
-	CodeBuffer::instance().bpatch(br_list, next_label2);
-	// CodeBuffer::instance().bpatch(exp_1_newTrueList, next_label2);
+	codeBuffer.bpatch(br_list, next_label2);
+	// codeBuffer.bpatch(exp_1_newTrueList, next_label2);
 	br_trueLabel_Lists.pop_back();
 	br_trueLabel_Lists.push_back(exp_1_newTrueList);
 	labels.push_back(next_label2);
@@ -396,13 +281,13 @@ T:
 
 Y:
 	{
-		auto adress_val = CodeBuffer::instance().emit("br label @");
+		auto adress_val = codeBuffer.emit("br label @");
 		auto br_list = br_trueLabel_Lists[br_trueLabel_Lists.size() - 1];
-		next_label2 = CodeBuffer::instance().genLabel();
-		auto exp_1_newTrueList1 = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(adress_val, FIRST));
-		CodeBuffer::instance().bpatch(exp_1_newTrueList1, next_label2);
+		next_label2 = codeBuffer.genLabel();
+		auto exp_1_newTrueList1 = codeBuffer.makelist(pair<int, BranchLabelIndex>(adress_val, FIRST));
+		codeBuffer.bpatch(exp_1_newTrueList1, next_label2);
 		labels.pop_back();
-		CodeBuffer::instance().bpatch(br_list, next_label2);
+		codeBuffer.bpatch(br_list, next_label2);
 		br_trueLabel_Lists.pop_back();
 	};
 
@@ -427,12 +312,17 @@ K:
 
 N:
 	{
-		int br_trueLabel_address1 = CodeBuffer::instance().emit("br label @");
-		auto exp_1_newTrueList1 = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_trueLabel_address1, FIRST));
-		string next_label_val = CodeBuffer::instance().genLabel();
+		int br_trueLabel_address1 = codeBuffer.emit("br label @");
+		auto exp_1_newTrueList1 = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_trueLabel_address1, FIRST));
+		string next_label_val = codeBuffer.genLabel();
 		next_label.push_back(next_label_val);
-		CodeBuffer::instance().bpatch(exp_1_newTrueList1, next_label[next_label.size() - 1]);
+		codeBuffer.bpatch(exp_1_newTrueList1, next_label[next_label.size() - 1]);
 	};
+
+Call: ID LPAREN Exp RPAREN
+	{
+
+	}
 
 ExpList: Exp
 	{
@@ -445,16 +335,16 @@ ExpList: Exp
 		$$= $3;
 	};
 
-Type   :  INT { $$ = new Node("INT"); }
-	| BYTE{ $$ = new Node("BYTE"); }
-	| BOOL{ $$ = new Node("BOOL"); };
+Type: INT  { $$ = new Symbol("INT", "INT");   }
+	| BYTE { $$ = new Symbol("BYTE", "BYTE"); }
+	| BOOL { $$ = new Symbol("BOOL", "BOOL"); };
 
-Exp:  LPAREN Exp RPAREN 
+Exp: LPAREN Exp RPAREN
 	{
 		$$ = $2;
 	}
 
-	| Exp MUL Exp 
+	| Exp MUL Exp
 	{
 		bool exp1IsNumericType = !$1->type.compare("INT") || !$1->type.compare("BYTE");
 		bool exp2IsNumericType = !$3->type.compare("INT") || !$3->type.compare("BYTE");
@@ -470,17 +360,17 @@ Exp:  LPAREN Exp RPAREN
 			resultType = "BYTE";
 		$$ = new Node(resultType);
 
-		string resultValue = CodeBuffer::instance().newTemp();
+		string resultValue = codeBuffer.newTemp();
 		string getResultValue_cmd = resultValue + " = mul i32 " + $1->var + "," + $3->var;
-		CodeBuffer::instance().emit(getResultValue_cmd);
+		codeBuffer.emit(getResultValue_cmd);
 		if (!resultType.compare("BYTE"))
 		{
-			string truncValue = CodeBuffer::instance().newTemp();
+			string truncValue = codeBuffer.newTemp();
 			string getResultValue_trunc = truncValue + " = trunc i32 " + resultValue + " to i8";
-			CodeBuffer::instance().emit(getResultValue_trunc);
-			string zextValue = CodeBuffer::instance().newTemp();
+			codeBuffer.emit(getResultValue_trunc);
+			string zextValue = codeBuffer.newTemp();
 			string getResultValue_zext = zextValue + " = zext i8 " + truncValue + " to i32";
-			CodeBuffer::instance().emit(getResultValue_zext);
+			codeBuffer.emit(getResultValue_zext);
 			$$->var = zextValue;
 		}
 		else
@@ -505,27 +395,27 @@ Exp:  LPAREN Exp RPAREN
 			resultType = "BYTE";
 		$$ = new Node(resultType);
 
-		string zero_Check = CodeBuffer::instance().newTemp();
+		string zero_Check = codeBuffer.newTemp();
 		string zero_cmd = zero_Check + " = icmp eq i32 " + $3->var + ", 0";
-		CodeBuffer::instance().emit(zero_cmd);
+		codeBuffer.emit(zero_cmd);
 		string branch_cmd_exp1 = "br i1 " + zero_Check + ", label @, label @";
-		int br_exp1_address = CodeBuffer::instance().emit(branch_cmd_exp1);
-		auto exp_1_newTrueList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
-		auto exp_1_newFalseList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp1_address, SECOND));
-		string true_label = CodeBuffer::instance().genLabel();
+		int br_exp1_address = codeBuffer.emit(branch_cmd_exp1);
+		auto exp_1_newTrueList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
+		auto exp_1_newFalseList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, SECOND));
+		string true_label = codeBuffer.genLabel();
 		//assume error here
-		string zero_ptr = CodeBuffer::instance().newTemp();
-		CodeBuffer::instance().emit(zero_ptr + " = getelementptr [23 x i8], [23 x i8]* @.zero_div_string, i32 0, i32 0");
-		CodeBuffer::instance().emit("call void(i8*) @print(i8* " + zero_ptr + " )");
-		CodeBuffer::instance().emit("call void (i32) @exit(i32 0)");
-		int br_trueLabel_address1 = CodeBuffer::instance().emit("br label @");
-		auto exp_1_newTrueList1 = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_trueLabel_address1, FIRST));
-		string next_label_val = CodeBuffer::instance().genLabel();
-		CodeBuffer::instance().bpatch(exp_1_newTrueList, true_label);
-		CodeBuffer::instance().bpatch(exp_1_newFalseList, next_label_val);
-		CodeBuffer::instance().bpatch(exp_1_newTrueList1, next_label_val);
+		string zero_ptr = codeBuffer.newTemp();
+		codeBuffer.emit(zero_ptr + " = getelementptr [23 x i8], [23 x i8]* @.zero_div_string, i32 0, i32 0");
+		codeBuffer.emit("call void(i8*) @print(i8* " + zero_ptr + " )");
+		codeBuffer.emit("call void (i32) @exit(i32 0)");
+		int br_trueLabel_address1 = codeBuffer.emit("br label @");
+		auto exp_1_newTrueList1 = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_trueLabel_address1, FIRST));
+		string next_label_val = codeBuffer.genLabel();
+		codeBuffer.bpatch(exp_1_newTrueList, true_label);
+		codeBuffer.bpatch(exp_1_newFalseList, next_label_val);
+		codeBuffer.bpatch(exp_1_newTrueList1, next_label_val);
 		//continunte here if not error
-		string resultValue = CodeBuffer::instance().newTemp();
+		string resultValue = codeBuffer.newTemp();
 		string getResultValue_cmd;
 		if (!resultType.compare("BYTE"))
 		{
@@ -535,7 +425,7 @@ Exp:  LPAREN Exp RPAREN
 		{
 			getResultValue_cmd = resultValue + " = sdiv i32 " + $1->var + "," + $3->var;
 		}
-		CodeBuffer::instance().emit(getResultValue_cmd);
+		codeBuffer.emit(getResultValue_cmd);
 		$$->var = resultValue;
 	}
 	
@@ -554,17 +444,17 @@ Exp:  LPAREN Exp RPAREN
 		else
 			resultType = "BYTE";
 		$$ = new Node(resultType);
-		string resultValue = CodeBuffer::instance().newTemp();
+		string resultValue = codeBuffer.newTemp();
 		string getResultValue_cmd = resultValue + " = add i32 " + $1->var + "," + $3->var;
-		CodeBuffer::instance().emit(getResultValue_cmd);
+		codeBuffer.emit(getResultValue_cmd);
 		if (!resultType.compare("BYTE"))
 		{
-			string truncValue = CodeBuffer::instance().newTemp();
+			string truncValue = codeBuffer.newTemp();
 			string getResultValue_trunc = truncValue + " = trunc i32 " + resultValue + " to i8";
-			CodeBuffer::instance().emit(getResultValue_trunc);
-			string zextValue = CodeBuffer::instance().newTemp();
+			codeBuffer.emit(getResultValue_trunc);
+			string zextValue = codeBuffer.newTemp();
 			string getResultValue_zext = zextValue + " = zext i8 " + truncValue + " to i32";
-			CodeBuffer::instance().emit(getResultValue_zext);
+			codeBuffer.emit(getResultValue_zext);
 			$$->var = zextValue;
 		}
 		else
@@ -589,17 +479,17 @@ Exp:  LPAREN Exp RPAREN
 			resultType = "BYTE";
 		$$ = new Node(resultType);
 
-		string resultValue = CodeBuffer::instance().newTemp();
+		string resultValue = codeBuffer.newTemp();
 		string getResultValue_cmd = resultValue + " = sub i32 " + $1->var + "," + $3->var;
-		CodeBuffer::instance().emit(getResultValue_cmd);
+		codeBuffer.emit(getResultValue_cmd);
 		if (!resultType.compare("BYTE"))
 		{
-			string truncValue = CodeBuffer::instance().newTemp();
+			string truncValue = codeBuffer.newTemp();
 			string getResultValue_trunc = truncValue + " = trunc i32 " + resultValue + " to i8";
-			CodeBuffer::instance().emit(getResultValue_trunc);
-			string zextValue = CodeBuffer::instance().newTemp();
+			codeBuffer.emit(getResultValue_trunc);
+			string zextValue = codeBuffer.newTemp();
 			string getResultValue_zext = zextValue + " = zext i8 " + truncValue + " to i32";
-			CodeBuffer::instance().emit(getResultValue_zext);
+			codeBuffer.emit(getResultValue_zext);
 			$$->var = zextValue;
 		}
 		else
@@ -637,15 +527,15 @@ Exp:  LPAREN Exp RPAREN
 			bool expBool = !typeOfId.compare("BOOL");
 			if (expBool)
 			{
-				string zeroExtentionOfBool = CodeBuffer::instance().newTemp();
-				CodeBuffer::instance().emit(zeroExtentionOfBool + "= add i1 " + var_val + ",0");
+				string zeroExtentionOfBool = codeBuffer.newTemp();
+				codeBuffer.emit(zeroExtentionOfBool + "= add i1 " + var_val + ",0");
 				$$->var = zeroExtentionOfBool;
 			}
 			else
 			{
-				string IdValue = CodeBuffer::instance().newTemp();
+				string IdValue = codeBuffer.newTemp();
 				string getIdValue_cmd = IdValue + " = add i32 " + var_val + ",0";
-				CodeBuffer::instance().emit(getIdValue_cmd);
+				codeBuffer.emit(getIdValue_cmd);
 				$$->var = IdValue;
 			}
 		}
@@ -653,15 +543,15 @@ Exp:  LPAREN Exp RPAREN
 		{
 			// here the case of local variable:
 
-			string IdValue = CodeBuffer::instance().newTemp();
+			string IdValue = codeBuffer.newTemp();
 			string getIdValue_cmd = IdValue + " = load i32, i32* " + var_val;
-			CodeBuffer::instance().emit(getIdValue_cmd);
+			codeBuffer.emit(getIdValue_cmd);
 			bool expBool = !typeOfId.compare("BOOL");
 			if (expBool)
 			{
-				string truncValue = CodeBuffer::instance().newTemp();
+				string truncValue = codeBuffer.newTemp();
 				string getResultValue_trunc = truncValue + " = trunc i32 " + IdValue + " to i1";
-				CodeBuffer::instance().emit(getResultValue_trunc);
+				codeBuffer.emit(getResultValue_trunc);
 				$$->var = truncValue;
 			}
 			else
@@ -678,9 +568,9 @@ Exp:  LPAREN Exp RPAREN
 	
 	| NUM {
 		$$= new Node("INT",std::to_string($1->getValue()));
-		string var=CodeBuffer::instance().newTemp();
+		string var=codeBuffer.newTemp();
 		string s=var+"= add i32 "+std::to_string($1->getValue())+",0";
-		CodeBuffer::instance().emit(s);	
+		codeBuffer.emit(s);
 		$$->var=var;
 	}
 	
@@ -694,9 +584,9 @@ Exp:  LPAREN Exp RPAREN
 			exit(0);
 		}
 		$$= new Node("BYTE",std::to_string($1->getValue()));
-		string var=CodeBuffer::instance().newTemp();	
+		string var=codeBuffer.newTemp();
 		string str=var+"= add i32 "+std::to_string($1->getValue())+",0";
-		CodeBuffer::instance().emit(str);	
+		codeBuffer.emit(str);
 		$$->var=var;
 	}
 	
@@ -705,28 +595,28 @@ Exp:  LPAREN Exp RPAREN
 		text = text.substr(1, text.size() - 2); // removing the " from start and end
 		string typeOfString = "[" + std::to_string(text.size() + 1) + " x i8]";
 		string nameOfString = "@.STRING_" + std::to_string(string_counter) + "_str";
-		CodeBuffer::instance().emitGlobal(nameOfString + " = internal constant" + typeOfString + " c\"" + text + "\\00\"");
+		codeBuffer.emitGlobal(nameOfString + " = internal constant" + typeOfString + " c\"" + text + "\\00\"");
 		string_counter++;
-		string var = CodeBuffer::instance().newTemp();
+		string var = codeBuffer.newTemp();
 		string command = var + " = getelementptr " + typeOfString + ", " + typeOfString + "* " + nameOfString + ", i32 0, i32 0";
-		CodeBuffer::instance().emit(command);
+		codeBuffer.emit(command);
 		$$ = new Node("STRING", $1->type);
 		$$->var = var;
 	}
 	
 	| TRUE {
 		$$ = $1;
-		string var = CodeBuffer::instance().newTemp();
+		string var = codeBuffer.newTemp();
 		string s = var + " = add i1 1,0";
-		CodeBuffer::instance().emit(s);
+		codeBuffer.emit(s);
 		$$->var = var;
 	}
 	
 	| FALSE {
 		$$ = $1;
-		string var = CodeBuffer::instance().newTemp();
+		string var = codeBuffer.newTemp();
 		string s = var + " = add i1 0,0";
-		CodeBuffer::instance().emit(s);
+		codeBuffer.emit(s);
 		$$->var = var;
 	}
 	
@@ -740,37 +630,37 @@ Exp:  LPAREN Exp RPAREN
 		$$ = $2;
 
 		string branch_cmd_exp1 = "br i1 " + $2->var + ", label @, label @";
-		int br_exp1_address = CodeBuffer::instance().emit(branch_cmd_exp1);
-		auto exp_1_newTrueList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
-		auto exp_1_newFalseList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp1_address, SECOND));
+		int br_exp1_address = codeBuffer.emit(branch_cmd_exp1);
+		auto exp_1_newTrueList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
+		auto exp_1_newFalseList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, SECOND));
 
-		string true_label = CodeBuffer::instance().genLabel();
-		int br_trueLabel_address = CodeBuffer::instance().emit("br label @");
-		auto br_trueLabel_List = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_trueLabel_address, FIRST));
-		string false_label = CodeBuffer::instance().genLabel();
-		int br_falseLabel_address = CodeBuffer::instance().emit("br label @");
-		auto br_falseLabel_List = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_falseLabel_address, FIRST));
-		string finalResultLabel = CodeBuffer::instance().genLabel();
-		string finalResultVar = CodeBuffer::instance().newTemp();
+		string true_label = codeBuffer.genLabel();
+		int br_trueLabel_address = codeBuffer.emit("br label @");
+		auto br_trueLabel_List = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_trueLabel_address, FIRST));
+		string false_label = codeBuffer.genLabel();
+		int br_falseLabel_address = codeBuffer.emit("br label @");
+		auto br_falseLabel_List = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_falseLabel_address, FIRST));
+		string finalResultLabel = codeBuffer.genLabel();
+		string finalResultVar = codeBuffer.newTemp();
 		string phi_cmd = finalResultVar + " = phi i1 [0, %" + false_label + "], [1, %" + true_label + "]";
-		CodeBuffer::instance().emit(phi_cmd);
-		CodeBuffer::instance().bpatch(exp_1_newTrueList, false_label);
-		CodeBuffer::instance().bpatch(exp_1_newFalseList, true_label);
-		CodeBuffer::instance().bpatch(br_trueLabel_List, finalResultLabel);
-		CodeBuffer::instance().bpatch(br_falseLabel_List, finalResultLabel);
+		codeBuffer.emit(phi_cmd);
+		codeBuffer.bpatch(exp_1_newTrueList, false_label);
+		codeBuffer.bpatch(exp_1_newFalseList, true_label);
+		codeBuffer.bpatch(br_trueLabel_List, finalResultLabel);
+		codeBuffer.bpatch(br_falseLabel_List, finalResultLabel);
 		$$->var = finalResultVar;
 	}
 	
 	| Exp AND
 	{
 		string branch_cmd_exp1 = "br i1 " + $1->var + ", label @, label @";
-		int br_exp1_address = CodeBuffer::instance().emit(branch_cmd_exp1);
-		auto exp_1_newTrueList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
-		auto exp_1_newFalseList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp1_address, SECOND));
-		$1->trueList = CodeBuffer::instance().merge(exp_1_newTrueList, $1->trueList);
-		$1->falseList = CodeBuffer::instance().merge(exp_1_newFalseList, $1->falseList);
-		string exp1_true_label = CodeBuffer::instance().genLabel();
-		CodeBuffer::instance().bpatch($1->trueList, exp1_true_label);
+		int br_exp1_address = codeBuffer.emit(branch_cmd_exp1);
+		auto exp_1_newTrueList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
+		auto exp_1_newFalseList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, SECOND));
+		$1->trueList = codeBuffer.merge(exp_1_newTrueList, $1->trueList);
+		$1->falseList = codeBuffer.merge(exp_1_newFalseList, $1->falseList);
+		string exp1_true_label = codeBuffer.genLabel();
+		codeBuffer.bpatch($1->trueList, exp1_true_label);
 	}
 	Exp
 	{
@@ -782,39 +672,39 @@ Exp:  LPAREN Exp RPAREN
 		$$ = $1;
 
 		string branch_cmd_exp2 = "br i1 " + $4->var + ", label @, label @";
-		int br_exp2_address = CodeBuffer::instance().emit(branch_cmd_exp2);
-		auto exp_2_newTrueList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp2_address, FIRST));
-		auto exp_2_newFalseList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp2_address, SECOND));
-		$4->trueList = CodeBuffer::instance().merge(exp_2_newTrueList, $4->trueList);
-		$4->falseList = CodeBuffer::instance().merge(exp_2_newFalseList, $4->falseList);
-		string true_label = CodeBuffer::instance().genLabel();
-		int br_trueLabel_address = CodeBuffer::instance().emit("br label @");
-		auto br_trueLabel_List = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_trueLabel_address, FIRST));
-		string false_label = CodeBuffer::instance().genLabel();
-		int br_falseLabel_address = CodeBuffer::instance().emit("br label @");
-		auto br_falseLabel_List = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_falseLabel_address, FIRST));
-		string finalResultLabel = CodeBuffer::instance().genLabel();
-		string finalResultVar = CodeBuffer::instance().newTemp();
+		int br_exp2_address = codeBuffer.emit(branch_cmd_exp2);
+		auto exp_2_newTrueList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp2_address, FIRST));
+		auto exp_2_newFalseList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp2_address, SECOND));
+		$4->trueList = codeBuffer.merge(exp_2_newTrueList, $4->trueList);
+		$4->falseList = codeBuffer.merge(exp_2_newFalseList, $4->falseList);
+		string true_label = codeBuffer.genLabel();
+		int br_trueLabel_address = codeBuffer.emit("br label @");
+		auto br_trueLabel_List = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_trueLabel_address, FIRST));
+		string false_label = codeBuffer.genLabel();
+		int br_falseLabel_address = codeBuffer.emit("br label @");
+		auto br_falseLabel_List = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_falseLabel_address, FIRST));
+		string finalResultLabel = codeBuffer.genLabel();
+		string finalResultVar = codeBuffer.newTemp();
 		string phi_cmd = finalResultVar + " = phi i1 [0, %" + false_label + "], [1, %" + true_label + "]";
-		CodeBuffer::instance().emit(phi_cmd);
-		CodeBuffer::instance().bpatch($1->falseList, false_label);
-		CodeBuffer::instance().bpatch($4->trueList, true_label);
-		CodeBuffer::instance().bpatch($4->falseList, false_label);
-		CodeBuffer::instance().bpatch(br_trueLabel_List, finalResultLabel);
-		CodeBuffer::instance().bpatch(br_falseLabel_List, finalResultLabel);
+		codeBuffer.emit(phi_cmd);
+		codeBuffer.bpatch($1->falseList, false_label);
+		codeBuffer.bpatch($4->trueList, true_label);
+		codeBuffer.bpatch($4->falseList, false_label);
+		codeBuffer.bpatch(br_trueLabel_List, finalResultLabel);
+		codeBuffer.bpatch(br_falseLabel_List, finalResultLabel);
 		$$->var = finalResultVar;
 	}
 				
 	| Exp OR
 	{
 		string branch_cmd_exp1 = "br i1 " + $1->var + ", label @, label @";
-		int br_exp1_address = CodeBuffer::instance().emit(branch_cmd_exp1);
-		auto exp_1_newTrueList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
-		auto exp_1_newFalseList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp1_address, SECOND));
-		$1->trueList = CodeBuffer::instance().merge(exp_1_newTrueList, $1->trueList);
-		$1->falseList = CodeBuffer::instance().merge(exp_1_newFalseList, $1->falseList);
-		string exp1_false_label = CodeBuffer::instance().genLabel();
-		CodeBuffer::instance().bpatch($1->falseList, exp1_false_label);
+		int br_exp1_address = codeBuffer.emit(branch_cmd_exp1);
+		auto exp_1_newTrueList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
+		auto exp_1_newFalseList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, SECOND));
+		$1->trueList = codeBuffer.merge(exp_1_newTrueList, $1->trueList);
+		$1->falseList = codeBuffer.merge(exp_1_newFalseList, $1->falseList);
+		string exp1_false_label = codeBuffer.genLabel();
+		codeBuffer.bpatch($1->falseList, exp1_false_label);
 	}
 	Exp
 	{
@@ -826,26 +716,26 @@ Exp:  LPAREN Exp RPAREN
 		$$ = $1;
 
 		string branch_cmd_exp2 = "br i1 " + $4->var + ", label @, label @";
-		int br_exp2_address = CodeBuffer::instance().emit(branch_cmd_exp2);
-		auto exp_2_newTrueList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp2_address, FIRST));
-		auto exp_2_newFalseList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp2_address, SECOND));
-		$4->trueList = CodeBuffer::instance().merge(exp_2_newTrueList, $4->trueList);
-		$4->falseList = CodeBuffer::instance().merge(exp_2_newFalseList, $4->falseList);
-		string false_label = CodeBuffer::instance().genLabel();
-		int br_falseLabel_address = CodeBuffer::instance().emit("br label @");
-		auto br_falseLabel_List = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_falseLabel_address, FIRST));
-		string true_label = CodeBuffer::instance().genLabel();
-		int br_trueLabel_address = CodeBuffer::instance().emit("br label @");
-		auto br_trueLabel_List = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_trueLabel_address, FIRST));
-		string finalResultLabel = CodeBuffer::instance().genLabel();
-		string finalResultVar = CodeBuffer::instance().newTemp();
+		int br_exp2_address = codeBuffer.emit(branch_cmd_exp2);
+		auto exp_2_newTrueList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp2_address, FIRST));
+		auto exp_2_newFalseList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp2_address, SECOND));
+		$4->trueList = codeBuffer.merge(exp_2_newTrueList, $4->trueList);
+		$4->falseList = codeBuffer.merge(exp_2_newFalseList, $4->falseList);
+		string false_label = codeBuffer.genLabel();
+		int br_falseLabel_address = codeBuffer.emit("br label @");
+		auto br_falseLabel_List = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_falseLabel_address, FIRST));
+		string true_label = codeBuffer.genLabel();
+		int br_trueLabel_address = codeBuffer.emit("br label @");
+		auto br_trueLabel_List = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_trueLabel_address, FIRST));
+		string finalResultLabel = codeBuffer.genLabel();
+		string finalResultVar = codeBuffer.newTemp();
 		string phi_cmd = finalResultVar + " = phi i1 [0, %" + false_label + "], [1, %" + true_label + "]";
-		CodeBuffer::instance().emit(phi_cmd);
-		CodeBuffer::instance().bpatch($1->trueList, true_label);
-		CodeBuffer::instance().bpatch($4->trueList, true_label);
-		CodeBuffer::instance().bpatch($4->falseList, false_label);
-		CodeBuffer::instance().bpatch(br_trueLabel_List, finalResultLabel);
-		CodeBuffer::instance().bpatch(br_falseLabel_List, finalResultLabel);
+		codeBuffer.emit(phi_cmd);
+		codeBuffer.bpatch($1->trueList, true_label);
+		codeBuffer.bpatch($4->trueList, true_label);
+		codeBuffer.bpatch($4->falseList, false_label);
+		codeBuffer.bpatch(br_trueLabel_List, finalResultLabel);
+		codeBuffer.bpatch(br_falseLabel_List, finalResultLabel);
 		$$->var = finalResultVar;
 	}
 	
@@ -893,7 +783,7 @@ Exp:  LPAREN Exp RPAREN
 			}
 		}
 
-		string cmp = CodeBuffer::instance().newTemp();
+		string cmp = codeBuffer.newTemp();
 		string cmp_cmd;
 		string resultType;
 		if (is_signed)
@@ -902,7 +792,7 @@ Exp:  LPAREN Exp RPAREN
 			cmp_cmd = cmp + " = icmp " + eq_op + " i32 " + $1->var + ", " + $3->var;
 
 		$$->var = cmp;
-		CodeBuffer::instance().emit(cmp_cmd);
+		codeBuffer.emit(cmp_cmd);
 	}
 	
 	| Exp EQUALITY Exp 
@@ -924,7 +814,7 @@ Exp:  LPAREN Exp RPAREN
 			eq_ne = "eq";
 		}
 		//icmp eq i32 4, 5
-		string cmp=CodeBuffer::instance().newTemp();
+		string cmp=codeBuffer.newTemp();
 		string cmp_cmd;
 		string resultType;
 		if (!$1->type.compare("INT") || !$3->type.compare("INT"))
@@ -933,7 +823,7 @@ Exp:  LPAREN Exp RPAREN
 				cmp_cmd = cmp +" = icmp "+eq_ne+" i32 " + $1->var + ", " + $3->var ;
 				
 		$$->var= cmp;
-		CodeBuffer::instance().emit(cmp_cmd);
+		codeBuffer.emit(cmp_cmd);
 	}
 	| LPAREN Type RPAREN Exp %prec tempp 
 	{
@@ -967,52 +857,52 @@ int main()
 	scopes.back().addInScope("readi", "FUNCTION", 0,"INT", {"INT"});
 	// may be transfered to after parse to guarantee that al semnatic erros
 	// dedicted before  output the llvm file
-	CodeBuffer::instance().emitGlobal("declare i32 @printf(i8*, ...)");
-	CodeBuffer::instance().emitGlobal("declare i32 @scanf(i8*, ...)");
-	CodeBuffer::instance().emitGlobal("declare void @exit(i32)");
-	CodeBuffer::instance().emitGlobal("@.int_specifier = constant [4 x i8] c\"%d\\0A\\00\"");
-	CodeBuffer::instance().emitGlobal("@.int_specifier_scan = constant [3 x i8] c\"%d\\00\"");
-	CodeBuffer::instance().emitGlobal("@.str_specifier = constant [4 x i8] c\"%s\\0A\\00\"");
-	CodeBuffer::instance().emitGlobal("@.zero_div_string = constant [23 x i8] c\"Error division by zero\\00\""); // ""
+	codeBuffer.emitGlobal("declare i32 @printf(i8*, ...)");
+	codeBuffer.emitGlobal("declare i32 @scanf(i8*, ...)");
+	codeBuffer.emitGlobal("declare void @exit(i32)");
+	codeBuffer.emitGlobal("@.int_specifier = constant [4 x i8] c\"%d\\0A\\00\"");
+	codeBuffer.emitGlobal("@.int_specifier_scan = constant [3 x i8] c\"%d\\00\"");
+	codeBuffer.emitGlobal("@.str_specifier = constant [4 x i8] c\"%s\\0A\\00\"");
+	codeBuffer.emitGlobal("@.zero_div_string = constant [23 x i8] c\"Error division by zero\\00\""); // ""
 
 	// first function
-	CodeBuffer::instance().emit("define void @print(i8*) {");
-	CodeBuffer::instance().emit("%spec_ptr = getelementptr [4 x i8], [4 x i8]* @.str_specifier, i32 0, i32 0");
-	CodeBuffer::instance().emit("call i32 (i8*, ...) @printf(i8* %spec_ptr, i8* %0)");
-	CodeBuffer::instance().emit("ret void");
-	CodeBuffer::instance().emit("}");
+	codeBuffer.emit("define void @print(i8*) {");
+	codeBuffer.emit("%spec_ptr = getelementptr [4 x i8], [4 x i8]* @.str_specifier, i32 0, i32 0");
+	codeBuffer.emit("call i32 (i8*, ...) @printf(i8* %spec_ptr, i8* %0)");
+	codeBuffer.emit("ret void");
+	codeBuffer.emit("}");
 
 	// second function
-	CodeBuffer::instance().emit("define void @printi(i32) {");
-	CodeBuffer::instance().emit("%spec_ptr = getelementptr [4 x i8], [4 x i8]* @.int_specifier, i32 0, i32 0");
-	CodeBuffer::instance().emit("call i32 (i8*, ...) @printf(i8* %spec_ptr, i32 %0)");
-	CodeBuffer::instance().emit("ret void");
-	CodeBuffer::instance().emit("}");
+	codeBuffer.emit("define void @printi(i32) {");
+	codeBuffer.emit("%spec_ptr = getelementptr [4 x i8], [4 x i8]* @.int_specifier, i32 0, i32 0");
+	codeBuffer.emit("call i32 (i8*, ...) @printf(i8* %spec_ptr, i32 %0)");
+	codeBuffer.emit("ret void");
+	codeBuffer.emit("}");
 
 	// third function
-	CodeBuffer::instance().emit("define i32 @readi(i32) {");
-	CodeBuffer::instance().emit("%ret_val = alloca i32");
-	CodeBuffer::instance().emit("%spec_ptr = getelementptr [3 x i8], [3 x i8]* @.int_specifier_scan, i32 0, i32 0");
-	CodeBuffer::instance().emit("call i32 (i8*, ...) @scanf(i8* %spec_ptr, i32* %ret_val)");
-	CodeBuffer::instance().emit("%val = load i32, i32* %ret_val");
-	CodeBuffer::instance().emit("ret i32 %val");
-	CodeBuffer::instance().emit("}");
+	codeBuffer.emit("define i32 @readi(i32) {");
+	codeBuffer.emit("%ret_val = alloca i32");
+	codeBuffer.emit("%spec_ptr = getelementptr [3 x i8], [3 x i8]* @.int_specifier_scan, i32 0, i32 0");
+	codeBuffer.emit("call i32 (i8*, ...) @scanf(i8* %spec_ptr, i32* %ret_val)");
+	codeBuffer.emit("%val = load i32, i32* %ret_val");
+	codeBuffer.emit("ret i32 %val");
+	codeBuffer.emit("}");
 
-	CodeBuffer::instance().emit("define i32 @main(){");
+	codeBuffer.emit("define i32 @main(){");
 	curr_index = 0;
 	// alloca 50 local variables on stack :
-	CodeBuffer::instance().emit("%size = add i32 50, 0");
-	CodeBuffer::instance().emit("%stack_vars = alloca i32, i32 %size");
+	codeBuffer.emit("%size = add i32 50, 0");
+	codeBuffer.emit("%stack_vars = alloca i32, i32 %size");
 	int parserReturnVal = yyparse();
-	CodeBuffer::instance().emit("ret i32 0");
-	CodeBuffer::instance().emit("}");
+	codeBuffer.emit("ret i32 0");
+	codeBuffer.emit("}");
 
 	if (!parserReturnVal)
 	{
 		scopes.pop_back();
 		offsets.pop_back();
-		CodeBuffer::instance().printGlobalBuffer();
-		CodeBuffer::instance().printCodeBuffer();
+		codeBuffer.printGlobalBuffer();
+		codeBuffer.printCodeBuffer();
 	}
 	return parserReturnVal;
 }

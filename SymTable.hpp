@@ -16,7 +16,7 @@ using namespace std;
 class SymTable
 {
 private:
-    vector<shared_ptr<Element>> elements;
+    vector<shared_ptr<Symbol>> elements;
     std::string startLabel;
 	std::string endLabel;
 public:
@@ -24,7 +24,8 @@ public:
     SymTable(const SymTable& table) = default;
     ~SymTable() = default;
 
-    void AddElement(const shared_ptr<Element>& e);
+    void AddSymbol(const shared_ptr<Symbol>& e);
     int findSymbol(const string& elementName) const;
+    shared_ptr<Symbol> getSymbol(const string& elementName);
     void printSymTable() const;
 };

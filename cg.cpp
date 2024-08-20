@@ -42,3 +42,19 @@ void CodeBuffer::printGlobalBuffer()
 		cout << *it << endl;
 	}
 }
+
+CodeGenerator& CodeGenerator::getInstance() {
+	static CodeGenerator inst; //only instance
+	return inst;
+}
+
+string CodeGenerator::freshRegister() {
+    return "%t" + to_string(counterReg++);
+}
+
+string CodeGenerator::freshVariable(int offset) {
+	    std::stringstream var;
+        var << "%var_";
+        std::string ret(var.str());
+        return ret;
+}

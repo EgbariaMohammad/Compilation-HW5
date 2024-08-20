@@ -19,42 +19,33 @@ private:
     string name;
     string type;
     int offset;
-
 public:
-    Symbol(const string& name, const string& type, int position);
+    Symbol(const string& name, const string& type, int position = -1);
 
     Symbol(const Symbol& e) = default;
     virtual ~Symbol() = default;
 
     const string& getName() const;
+    virtual int getVal() const { return 0; }
     string getType() const;
     int getOffset() const;
 };
 
-class INT : public Symbol
+class NUM : public Symbol
 {
     int val;
 public:
-    INT(const string& name, const string& type, int position, int val) : Symbol(name, type, position), val(val) {}
-    virtual int getVal() const { return val; }
+    NUM(const string& name, const string& type, int position, int val) : Symbol(name, type, position), val(val) {}
+    virtual int getVal() const override { return val; }
 };
 
-class BOOL : public INT {
-public:
-    BOOL(const string& name, const string& type, int position, bool val) : INT(name, type, position, val) {}
-};
-
-class Byte : public INT {
-public:
-    Byte(const string& name, const string& type, int position, int val) : INT(name, type, position, val) {}
-};
 
 class myString : public Symbol
 {
     string val;
 public:
     myString(const string& name, const string& type, int position, const string& val) : Symbol(name, type, position), val(val) {}
-    string getVal() const { return val; }
+    string getValue() const { return val; }
 };
 
 class Function : public Symbol {
