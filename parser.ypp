@@ -69,7 +69,7 @@ Statement : LBRACE
 
 	| Type ID SC
 	{
-		if(scopeManager.findSymbol($2->getName()) == -1)
+		if(scopeManager.findSymbolInCurrentScope($2->getName()) == -1) // find if ID was decalred in the current scope
 		{
 			output::errorDef(yylineno, $2->type);
             exit(0);
@@ -110,11 +110,11 @@ Statement : LBRACE
 
 	| Type ID ASSIGN Exp SC
 	{
-		bool expInt = $4->type == "INT";
-		bool expByte = $4->type == "BYTE" ;
-		bool idInt = $1->type == "INT";
+		bool expInt = $4->getType() == "INT";
+		bool expByte = $4->getType() == "BYTE";
+		bool idInt = $1->getType() == "INT";
 
-		if($1->type.compare("BYTE") and $4->getValue() > 255)
+		if($1->type == "BYTE" and $4->getValue() > 255)
 		{ // check if the variable was declared as Byte but the value is bigger than what byte holds
 			output::errorByteTooLarge(yylineno,to_string($5->getValue()));
 			exit(0);
@@ -124,7 +124,7 @@ Statement : LBRACE
 			output::errorMismatch(yylineno);
 			exit(0);
 		{
-		else if(scopeManager.findSymbol($2->getName()) == -1)
+		else if(scopeManager.findSymbolInCurrentScope($2->getName()) == -1)
 		{
 			output::errorDef(yylineno, $2->type);
             exit(0);
@@ -172,21 +172,26 @@ Statement : LBRACE
 
 	| ID ASSIGN Exp SC
 	{
-		bool foundSymbol = scopeManager.findSymbol($1->getName());
+		bool foundSymbol = scopeManager.findSymbol($1->getName()); //TODO: get the Symbol itself!
 		if(!foundSymbol) { // what if symbol is Func ?
 			output::errorUndef(yylineno, $1->getName());
 			exit(0);
 		}
-		string typeOfId = scopes[i].getElementType($1->type);
-		bool expInt = !$3->type.compare("INT");
-		bool expByte = !$3->type.compare("BYTE");
-		bool idInt = !typeOfId.compare("INT");
-		
-		if($3->type.compare(typeOfId) and (!(expByte or (expInt and idInt)))){
+		// now check if we are assining the right type to the variable!
+		string typeOfId = scopes[i].getElementType($1->type); // type of variable;
+		bool expInt = $3->getType() == "INT";
+		bool expByte = $3->getType() == "BYTE" ;
+		bool expBool = $3->type == "BOOL";
+		bool idInt = $1->getType() == "INT";
+
+		if($3->getType() != typeOfId and !(idInt and expByte)){
 			output::errorMismatch(yylineno);
 			exit(0);
 		}
-		bool expBool = !$3->type.compare("BOOL");
+		int variableOffset = scopeManager.getOffset();
+		string varOffset = codeGenerator.freshVariable(variableOffset);
+
+		/*
 		// var is a pointer , so when reading value ==> load , when assign ==> store
 		string var = $1->var;
 		string var_val = scopes[i].returnVar($1->type); // ...
@@ -200,12 +205,12 @@ Statement : LBRACE
 		}
 		else
 			store_cmd = "store i32 " + $3->var + ", i32* " + var_val;
-		CodeBuffer::instance().emit(store_cmd);
+		CodeBuffer::instance().emit(store_cmd); */
 	}
-	
-	|Call SC
+
+	| Call SC
 	{
-		bool existsInAfunctionScope = false;
+		/* bool existsInAfunctionScope = false;
 		int i = scopes.size() - 1;
 		for (; i >= 0; i--)
 		{
@@ -222,34 +227,30 @@ Statement : LBRACE
 				output::errorMismatch(yylineno);
 				exit(0);
 			}
-		}
-		// if (scopes[i].getReturnType().compare("INT"))
-			// CodeBuffer::instance().emit("ret i32 0");
-		// else
-			// CodeBuffer::instance().emit("ret void");
+		} */
 	}
-	| RETURN SC 
+	| RETURN SC
 	{
 		CodeBuffer::instance().emit("ret i32 0");
 	}
-	
-	| IF LPAREN Exp A RPAREN  M Statement T %prec temp FINISH
+
+	| IF LPAREN Exp A RPAREN M Statement T %prec temp FINISH
 	{
-		
+
 		auto br_list = br_trueLabel_Lists[br_trueLabel_Lists.size() - 1];
 		CodeBuffer::instance().bpatch(br_list, labels[labels.size() - 1]);
 		labels.pop_back();
-		
+
 		br_trueLabel_Lists.pop_back();
 		next_label.pop_back();
 	}
-	
-	| IF LPAREN Exp A RPAREN M Statement T FINISH ELSE K Statement Y FINISH 
+
+	| IF LPAREN Exp A RPAREN M Statement T FINISH ELSE K Statement Y FINISH
 	{
 		next_label.pop_back();
 	}
-	
-	| WHILE N LPAREN Exp 
+
+	| WHILE N LPAREN Exp
 	{
 		bool is_break = false;
 		hasBreak.push_back(is_break);
@@ -266,7 +267,7 @@ Statement : LBRACE
 		next_label2 = CodeBuffer::instance().genLabel();
 		CodeBuffer::instance().bpatch(exp_1_newTrueList, next_label2);
 		CodeBuffer::instance().bpatch(exp_1_newFalseList, true_label);
-	} RPAREN 
+	} RPAREN
 	{
 		if ($4->type.compare("BOOL"))
 		{
@@ -293,7 +294,7 @@ Statement : LBRACE
 			hasBreak[hasBreak.size() - 1] = false;
 		}
 		br_trueLabel_Lists.pop_back();
-	} FINISH 
+	} FINISH
 	{
 		if (hasBreak.size() != 0)
 		{
@@ -305,8 +306,7 @@ Statement : LBRACE
 		}
 
 		next_label.pop_back();
-	} 
-
+	}
 	| BREAK SC
 	{
 		bool inWhileOrSwitch = false;
@@ -330,8 +330,8 @@ Statement : LBRACE
 		global_break[global_break.size() - 1] = CodeBuffer::instance().merge(global_break[global_break.size() - 1], array_global);
 		hasBreak[hasBreak.size() - 1] = true;
 	}
-	
-	| CONTINUE SC 
+
+	| CONTINUE SC
 	{
 		bool inWhile = false;
 		int count =0;
@@ -352,7 +352,7 @@ Statement : LBRACE
 			output::errorUnexpectedContinue(yylineno);
 			exit(0);
 		}
-		
+
 		string branch_cmd_exp1 = "br label @";
 		int br_exp1_address = CodeBuffer::instance().emit(branch_cmd_exp1);
 		auto exp_1_newTrueList = CodeBuffer::instance().makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
@@ -361,10 +361,8 @@ Statement : LBRACE
 
 	FINISH:
 	{
-		scopes.pop_back();
-		offsets.pop_back();
+		scopeManager.popScope();
 	};
-
 
 A:
 {
