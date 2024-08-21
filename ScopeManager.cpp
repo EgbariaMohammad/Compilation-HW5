@@ -88,9 +88,23 @@ shared_ptr<Symbol> ScopeManager::getSymbol(const string& name) const
 
 bool ScopeManager::searchIfScopeOpen(ScopeType type) const {
     for (int i = scopes.size() - 1; i >= 0; i--)
-    {
         if (scopes[i].second == type)
             return true;
-    }
     return false;
+}
+
+string ScopeManager::getLastScopeStartLabel() const {
+    return scopes.back().first->getStartLabel();
+}
+
+string ScopeManager::getLastScopeEndLabel() const {
+    return scopes.back().first->getEndLabel();
+}
+
+void ScopeManager::setLastScopeStartLabel(const string& label) {
+    scopes.back().first->setStartLabel(label);
+}
+
+void ScopeManager::setLastScopeEndLabel(const string& label) {
+    scopes.back().first->setEndLabel(label);
 }
