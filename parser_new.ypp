@@ -51,3 +51,28 @@
 %right		NOT
 %left		LPAREN RPAREN
 %nonassoc 	tempp
+
+%%
+Program : Statements;
+Statements : Statement | Statements Statement;
+Statement :
+    LBRACE { scopeManager.pushScope(ScopeType::BLOCK); } Statements RBRACE FINISH
+    | Type ID SC
+    {
+        // check if ID was declared in this scope previously
+        if(scopeManager.findSymbolInCurrentScope($2->getName()) == -1)
+		{
+			output::errorDef(yylineno, $2->getName());
+            exit(0);
+		}
+        int variableOffset = scopeManager.getOffset();
+		shared_ptr<Symbol> newSymbol = make_shared<Symbol>($1->getType(), $2->getName(), "NO VARIABLE", variableOffset);
+		scopeManager.insertSymbol(newSymbol);
+
+        string varOffset = codeGenerator.intToString(variableOffset);
+		string varAddress = codeGenerator.freshRegister();
+		string allocCode = varAddress + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
+		string storeValCode = "store i32 0, i32* " + varAddress;
+		codeBuffer.emit(allocCode);
+		codeBuffer.emit(storeValCode);
+    }
