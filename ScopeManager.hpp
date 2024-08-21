@@ -33,17 +33,22 @@ public:
         static ScopeManager instance;
         return instance;
     }
+
     void pushScope(ScopeType type);
     void popScope();
     void insertSymbol(const shared_ptr<Symbol>& e);
     int findSymbol(const string& name) const;
     int findSymbolInCurrentScope(const string& name) const;
-    shared_ptr<Symbol> getSymbol(const string& name) const;
+    bool searchIfScopeOpen(ScopeType type) const;
 
+    shared_ptr<Symbol> getSymbol(const string& name) const;
     int getOffset() const;
     void printScope() const;
     ScopeType getLatestScopeType() const;
-    bool searchIfScopeOpen(ScopeType type) const;
+    string getLastScopeStartLabel() const;
+    string getLastScopeEndLabel() const;
+    void setLastScopeStartLabel(const string& label);
+    void setLastScopeEndLabel(const string& label);
 
     class EmptyManager : public exception {};
 };
