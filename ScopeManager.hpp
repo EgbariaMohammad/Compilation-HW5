@@ -40,18 +40,6 @@ public:
     int findSymbol(const string& name) const;
     int findSymbolInCurrentScope(const string& name) const;
     bool searchIfScopeOpen(ScopeType type) const;
-<<<<<<< HEAD
-
-    shared_ptr<Symbol> getSymbol(const string& name) const;
-    int getOffset() const;
-    void printScope() const;
-    ScopeType getLatestScopeType() const;
-    string getLastScopeStartLabel() const;
-    string getLastScopeEndLabel() const;
-    void setLastScopeStartLabel(const string& label);
-    void setLastScopeEndLabel(const string& label);
-=======
->>>>>>> be26f66 (extend ScopeManager Interface)
 
     shared_ptr<Symbol> getSymbol(const string& name) const;
     int getOffset() const;
