@@ -59,3 +59,11 @@ string CodeGenerator::freshRegister() {
 string CodeGenerator::intToString(int offset) {
     return to_string(offset);
 }
+
+void CodeGenerator::increaseStringCounter() {
+	stringCounter++;
+}
+
+int CodeGenerator::getStringCounter() {
+	return stringCounter;
+}

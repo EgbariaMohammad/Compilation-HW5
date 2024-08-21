@@ -42,10 +42,13 @@ class CodeGenerator{
 	CodeGenerator(const CodeGenerator&) = default;
     void operator=(const CodeGenerator&) = delete;
 	int counterReg = 1;
+	int stringCounter = 0;
 public:
 	static CodeGenerator &getInstance();
 	string freshRegister();
 	static string intToString(int offset);
+	void increaseStringCounter();
+	int getStringCounter();
 };
 
 #endif
