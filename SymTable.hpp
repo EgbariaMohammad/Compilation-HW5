@@ -27,5 +27,9 @@ public:
     void AddSymbol(const shared_ptr<Symbol>& e);
     int findSymbol(const string& elementName) const;
     shared_ptr<Symbol> getSymbol(const string& elementName);
+    const string& getStartLabel() const;
+    const string& getEndLabel() const;
+    void setStartLabel(const string& label);
+    void setEndLabel(const string& label);
     void printSymTable() const;
 };

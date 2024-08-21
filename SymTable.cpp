@@ -35,3 +35,16 @@ shared_ptr<Symbol> SymTable::getSymbol(const string& elementName)
     }
     return nullptr;
 }
+
+const string& SymTable::getStartLabel() const {
+    return startLabel;
+}
+const string& SymTable::getEndLabel() const {
+    return endLabel;
+}
+void SymTable::setStartLabel(const string& label) {
+    startLabel = label;
+}
+void SymTable::setEndLabel(const string& label) {
+    endLabel = label;
+}
