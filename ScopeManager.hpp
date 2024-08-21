@@ -13,7 +13,7 @@
 
 using namespace std;
 
-enum ScopeType
+enum class ScopeType
 {
     GLOBAL,
     FUNCTION,
@@ -26,7 +26,7 @@ class ScopeManager
 {
     stack<int> offsets;
     vector<pair<unique_ptr<SymTable>, ScopeType>> scopes;
-    ScopeManager() = default;
+    ScopeManager();
 public:
     static ScopeManager& getInstance()
     {
@@ -43,7 +43,7 @@ public:
     int getOffset() const;
     void printScope() const;
     ScopeType getLatestScopeType() const;
-    bool searchIfInScope(ScopeType type) const;
+    bool searchIfScopeOpen(ScopeType type) const;
 
     class EmptyManager : public exception {};
 };

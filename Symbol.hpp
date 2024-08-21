@@ -10,6 +10,8 @@
 #include <string>
 #include <iostream>
 
+#define YYSTYPE Symbol*
+
 using namespace std;
 
 
@@ -18,25 +20,30 @@ class Symbol
 private:
     string name;
     string type;
+    string variable;
     int offset;
 public:
-    Symbol(const string& name, const string& type, int position = -1);
+    Symbol(const string name, const string type, string variable="NO VARIABLE ALLOCATED", int position = -1);
 
-    Symbol(const Symbol& e) = default;
+    Symbol(const Symbol& e);
     virtual ~Symbol() = default;
 
     const string& getName() const;
-    virtual int getVal() const { return 0; }
+    virtual int getValue() const { return -1; }
     string getType() const;
     int getOffset() const;
+
+    string getVariable() const { return variable; }
+    void setVariable(const string& variable) { this->variable = variable; }
+    void setName(const string& name) { this->name = name; }
 };
 
-class NUM : public Symbol
+class Num : public Symbol
 {
     int val;
 public:
-    NUM(const string& name, const string& type, int position, int val) : Symbol(name, type, position), val(val) {}
-    virtual int getVal() const override { return val; }
+    Num(const string name, const string type, const string variable, int position, int val) : Symbol(name, type, variable, position), val(val) {}
+    virtual int getValue() const override { return val; }
 };
 
 
@@ -44,8 +51,8 @@ class myString : public Symbol
 {
     string val;
 public:
-    myString(const string& name, const string& type, int position, const string& val) : Symbol(name, type, position), val(val) {}
-    string getValue() const { return val; }
+    myString(const string name, const string type, const string variable, int position, const string val) : Symbol(name, type, variable, position), val(val) {}
+    string getStringValue() const { return val; }
 };
 
 class Function : public Symbol {
@@ -54,11 +61,7 @@ private:
     vector<string> parametersTypes;
 
 public:
-    Function(string name, string type, int pos, string returnType = "", vector<string> parametersTypes = vector<string>());
-
-    Function(const Function&) = default;
-    ~Function() = default;
-
+    Function(const string name, const string type, const string variable, int pos, string returnType = "", vector<string> parametersTypes = vector<string>());
     string getReturnType() const;
     vector<string>& getParametersTypes();
 };

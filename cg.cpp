@@ -11,6 +11,10 @@ CodeBuffer &CodeBuffer::instance() {
 	return inst;
 }
 
+int CodeBuffer::bufferSize() const {
+	return buffer.size();
+}
+
 string CodeBuffer::freshLabel(){
 	std::stringstream label;
 	label << "label_" << ++labels_num;
@@ -52,9 +56,6 @@ string CodeGenerator::freshRegister() {
     return "%t" + to_string(counterReg++);
 }
 
-string CodeGenerator::freshVariable(int offset) {
-	    std::stringstream var;
-        var << "%var_";
-        std::string ret(var.str());
-        return ret;
+string CodeGenerator::intToString(int offset) {
+    return to_string(offset);
 }

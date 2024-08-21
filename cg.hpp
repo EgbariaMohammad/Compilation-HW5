@@ -32,18 +32,20 @@ public:
 	void emitGlobal(const string& dataLine);
 	//print the content of the global buffer to stdout
 	void printGlobalBuffer();
+
+	int bufferSize() const;
 };
 
 
 class CodeGenerator{
-	CodeGenerator();
-	CodeGenerator(const CodeGenerator&);
-    void operator=(const CodeGenerator&);
+	CodeGenerator() = default;
+	CodeGenerator(const CodeGenerator&) = default;
+    void operator=(const CodeGenerator&) = delete;
 	int counterReg = 1;
 public:
 	static CodeGenerator &getInstance();
 	string freshRegister();
-	string freshVariable(int offset);
+	static string intToString(int offset);
 };
 
 #endif
