@@ -1,0 +1,17 @@
+%{
+    // *** includes *** //
+    #include "cg.hpp"
+	#include "Symbol.hpp"
+	#include "ScopeManager.hpp"
+    #include "hw3_output.hpp"
+
+    // *** Declarations *** //
+	ScopeManager& scopeManager = ScopeManager::getInstance();
+	CodeGenerator& codeGenerator = CodeGenerator::getInstance();
+	CodeBuffer& codeBuffer = CodeBuffer::instance();
+
+    // *** Flex externals *** //
+	extern int yylex();
+	extern int yylineno;
+	void yyerror(const char *message);
+%}
