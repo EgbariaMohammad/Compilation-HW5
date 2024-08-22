@@ -249,7 +249,7 @@ Statement :
 Call: ID LPAREN Exp RPAREN
 	{
 		bool functionExists = scopeManager.findSymbol($1->getName());
-		bool variableExist = scopeManager.findSymbol($3->getName());
+		bool variableExist = scopeManager.findSymbol($3->getName()) || $3->getType() == "STRING";
 		if(!functionExists or !variableExist)
 		{
 			!functionExists ? output::errorUndefFunc(yylineno, $1->getName()) : output::errorUndef(yylineno, $3->getName());
@@ -259,6 +259,12 @@ Call: ID LPAREN Exp RPAREN
 		if(symbol->getType() != "FUNCTION")
 		{
 			output::errorUndefFunc(yylineno, $1->getName());
+			exit(0);
+		}
+		else if(symbol->getName() == "print" && $3->getType() != "STRING")
+		{
+			vector<string> temp = {"STRING"};
+			output::errorPrototypeMismatch(yylineno, $1->getName(), temp);
 			exit(0);
 		}
 		shared_ptr<Function> function = std::dynamic_pointer_cast<Function>(symbol);
@@ -478,8 +484,11 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 		string var = codeGenerator.freshRegister();
 		string command = var + " = getelementptr " + typeOfString + ", " + typeOfString + "* " + nameOfString + ", i32 0, i32 0";
 		codeBuffer.emit(command);
-		$$ = new Symbol("STRING", $1->getType());
-		$$->setRegName(var);
+		// string strName = "str"+ std::to_string(codeGenerator.getStringCounter());
+		// int variableOffset = scopeManager.getOffset();
+		$$ = new myString("STRING", $1->getName(), var, -1);
+		// shared_ptr<myString> newSymbol = make_shared<myString>(strName, $1->getName(), var, variableOffset);
+		// scopeManager.insertSymbol(std::dynamic_pointer_cast<Symbol>(newSymbol));
 	}
 
 	| TRUE {
