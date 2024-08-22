@@ -10,6 +10,7 @@
 	ScopeManager& scopeManager = ScopeManager::getInstance();
 	CodeGenerator& codeGenerator = CodeGenerator::getInstance();
 	CodeBuffer& codeBuffer = CodeBuffer::instance();
+	string tempLabel;
 
     // *** Flex externals *** //
 	extern int yylex();
@@ -26,9 +27,8 @@
 %token		TRUE
 %token		FALSE
 %token		RETURN
-%nonassoc 	temp
-%nonassoc 	ELSE
-%nonassoc	IF
+%token 		ELSE
+%token 		IF
 %token		WHILE
 %token		BREAK
 %token		CONTINUE
@@ -52,12 +52,13 @@
 %right		NOT
 %left		LPAREN RPAREN
 %nonassoc 	tempp
+%right		ELSE
 
 %%
 Program : Statements;
 Statements : Statement | Statements Statement;
 Statement :
-    LBRACE { scopeManager.pushScope(ScopeType::BLOCK); } Statements RBRACE FINISH
+    LBRACE PUSH_SCOPE Statements RBRACE FINISH
     | Type ID SC
     {
         // check if ID was declared in this scope previously
@@ -72,7 +73,7 @@ Statement :
 
         string varOffset = codeGenerator.intToString(variableOffset);
 		string varAddress = codeGenerator.freshRegister();
-		string s = varAddress + " = getelementptr i32, i32* %stack_vars, i32 " + varOffset;
+		string allocCode = varAddress + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
 		string storeValCode = "store i32 0, i32* " + varAddress;
 		codeBuffer.emit(allocCode);
 		codeBuffer.emit(storeValCode);
@@ -124,15 +125,7 @@ Statement :
 			codeBuffer.emit("br label %" + NextLabel);
 			codeBuffer.emit(NextLabel + ":");
 		}
-		else if($4->getType() == "BYTE")
-		{
-			codeBuffer.emit(newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
-			string newVariable2 = codeGenerator.freshRegister();
-			codeBuffer.emit(newVariable2 + " = zext i8 " + $4->getRegName() + " to i32");
-			codeBuffer.emit("store i32 " + newVariable2 + ", i32* " + newVariable1);
-		}
-		else
-		{
+		else {
 			string code1 = newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
 			string code2 = "store i32 " + $4->getRegName() + ", i32* " + newVariable1;
 			codeBuffer.emit(code1);
@@ -196,27 +189,39 @@ Statement :
 		else
 		{
 			string code1 = newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
-			string code2 = "store i32 " + $4->getRegName() + ", i32* " + newVariable1;
+			string code2 = "store i32 " + $3->getRegName() + ", i32* " + newVariable1;
 			codeBuffer.emit(code1);
 			codeBuffer.emit(code2);
 		}
 	}
 	| Call SC {}
 	| RETURN SC { codeBuffer.emit("ret i32 0"); }
-	| IF LPAREN Exp { codeBuffer.emit(codeGenerator.getMostRecentTrueLabel()); } RPAREN Statement
+	| IF LPAREN Exp A RPAREN PUSH_SCOPE Statement
 	{
-		scopeManager.pushScope(ScopeType::IF_STATEMENT);
+		scopeManager.popScope();
 		codeBuffer.emit("br label %" + $3->getFalseLabel());
 		codeBuffer.emit($3->getFalseLabel() + ":");
+		scopeManager.popScope();
+	}
+	| IF LPAREN Exp A RPAREN PUSH_SCOPE Statement ELSE {
+		scopeManager.popScope();
+		scopeManager.pushScope(ScopeType::ELSE_STATEMENT);
+		tempLabel = codeBuffer.freshLabel();
+		codeBuffer.emit("br label %" + tempLabel);
+		codeBuffer.emit($3->getFalseLabel() + ":");
+	} Statement {
+		codeBuffer.emit("br label %" + tempLabel);
+		codeBuffer.emit(tempLabel + ":");
 		scopeManager.popScope();
 	}
 
 Call: ID LPAREN Exp RPAREN
 	{
 		bool functionExists = scopeManager.findSymbol($1->getName());
-		if(!functionExists)
+		bool variableExist = scopeManager.findSymbol($3->getName());
+		if(!functionExists or !variableExist)
 		{
-			output::errorUndefFunc(yylineno, $1->getName());
+			!functionExists ? output::errorUndefFunc(yylineno, $1->getName()) : output::errorUndef(yylineno, $3->getName());
 			exit(0);
 		}
 		shared_ptr<Symbol> symbol = scopeManager.getSymbol($1->getName());
@@ -227,10 +232,11 @@ Call: ID LPAREN Exp RPAREN
 		}
 		shared_ptr<Function> function = std::dynamic_pointer_cast<Function>(symbol);
 		vector<string> params = function->getParametersTypes();
-		bool validCall = std::find(params.begin(), params.end(), $3->getType()) != params.end();
+		string type = $3->getType() == "BYTE" or $3->getType() == "INT" ? "INT" : $3->getType();
+		bool validCall = std::find(params.begin(), params.end(), type) != params.end();
 		if(validCall == false)
 		{
-			output::errorPrototypeMismatch(yylineno, $3->getType(), params);
+			output::errorPrototypeMismatch(yylineno, $1->getName(), params);
 			exit(0);
 		}
 		string returnValueType = function->getReturnType();
@@ -239,12 +245,12 @@ Call: ID LPAREN Exp RPAREN
 		{
 			returnRegister = codeGenerator.freshRegister();
 			callCode = returnRegister + " = ";
+			$$->setRegName(returnRegister);
 		}
 		string returnValSize = returnValueType == "INT" or returnValueType == "BYTE" ? "i32 " : (returnValueType == "BOOL" ? "i1 " : "void " );
 		callCode += "call " + returnValSize; // this is ok for now since we allows only one paramater;
 		callCode += "@"+$1->getName() + "(" + ($1->getName() == "print" ? "i8* " : "i32 ") + $3->getRegName() + ")";
 		codeBuffer.emit(callCode);
-		$$->setRegName(returnRegister);
 		$$->setType(returnValueType);
 	};
 
@@ -476,9 +482,9 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 			exit(0);
 		}
 		string stringValue = std::to_string(value);
-		$$ = new Symbol("BYTE", std::to_string($1->getValue()));
+		$$ = new Symbol("BYTE", "BYTE");
 		string variable = codeGenerator.freshRegister();
-		string code = variable + "= add i32 " + std::to_string($1->getValue()) + ",0";
+		string code = variable + "= add i32 " + stringValue + ",0";
 		codeBuffer.emit(code);
 		$$->setRegName(variable);
 	}
@@ -518,6 +524,8 @@ FINISH:
     scopeManager.popScope();
 };
 
+A: { codeBuffer.emit(codeGenerator.getMostRecentTrueLabel()); }
+PUSH_SCOPE: { scopeManager.pushScope(ScopeType::BLOCK); }
 %%
 
 int main()
@@ -558,8 +566,8 @@ int main()
 
 	codeBuffer.emit("define i32 @main(){");
 	// alloca 50 local variables on stack :
-	CodeBuffer::instance().emit("%size = add i32 50, 0");
-	CodeBuffer::instance().emit("%stack_ptr = alloca i32, i32 %size");
+	codeBuffer.emit("%size = add i32 50, 0");
+	codeBuffer.emit("%stack_ptr = alloca [50 x i32]");
 	int parserReturnVal = yyparse();
 	codeBuffer.emit("ret i32 0");
 	codeBuffer.emit("}");

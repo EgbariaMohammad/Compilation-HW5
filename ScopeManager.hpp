@@ -19,6 +19,7 @@ enum class ScopeType
     FUNCTION,
     WHILE_LOOP,
     IF_STATEMENT,
+    ELSE_STATEMENT,
     BLOCK,
 };
 

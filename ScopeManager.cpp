@@ -31,7 +31,6 @@ void ScopeManager::popScope()
         throw EmptyManager();
     offsets.pop();
     scopes.pop_back();
-    output::endScope();
 }
 
 void ScopeManager::insertSymbol(const shared_ptr<Symbol>& e)
@@ -44,8 +43,8 @@ bool ScopeManager::findSymbol(const string& name) const
 {
     for (int i = scopes.size() - 1; i >= 0; i--)
     {
-        int index = scopes[i].first->findSymbol(name);
-        if (index != -1)
+        bool found = scopes[i].first->findSymbol(name);
+        if (found)
             return true;
     }
     return false;

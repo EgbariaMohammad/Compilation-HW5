@@ -51,12 +51,12 @@ continue return CONTINUE;
 {whiteSpace} ;
 
 {Equality} {
-    yylval = new Symbol("Equality Symbol", yytext);
+    yylval = new Symbol(yytext, yytext);
     return EQUALITY;
 }
 
 {CompOp} {
-    yylval = new Symbol("Comparator", yytext);
+    yylval = new Symbol(yytext, yytext);
 	return NONASSOCCRELOP;
 }
 
