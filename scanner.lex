@@ -1,6 +1,6 @@
 %{
     #include "Symbol.hpp"
-    #include "parser.tab.hpp"
+    #include "parser_new.tab.hpp"
     #include "hw3_output.hpp"
 %}
 %option yylineno
@@ -24,7 +24,7 @@ and   return AND;
 or    return OR;
 not   return NOT;
 true  {
-    yylval = new Num("BOOL", "BOOL");
+    yylval = new Symbol("BOOL", "BOOL");
     return TRUE;
     }
 false {

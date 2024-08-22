@@ -107,16 +107,16 @@ Statement :
         string newVariable1 = codeGenerator.freshRegister();
         if($4->getType() == "BOOL")
 		{
-			string NextLabel = codeGenerator.freshLabel();
+			string NextLabel = codeBuffer.freshLabel();
 			string newValue1 = codeGenerator.freshRegister();
 			string newValue2 = codeGenerator.freshRegister();
 			string newVariable2 = codeGenerator.freshRegister();
-			codeBuffer.emit($4.true_label + ":");
+			codeBuffer.emit($4->getTrueLabel() + ":");
 			codeBuffer.emit(newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
 			codeBuffer.emit(newValue1 + " = zext i1 1 to i32");
 			codeBuffer.emit("store i32 " + newValue1 + ", i32* " + newVariable1);
 			codeBuffer.emit("br label %" + NextLabel);
-			codeBuffer.emit($4.false_label + ":");
+			codeBuffer.emit($4->getFalseLabel() + ":");
 			codeBuffer.emit(newVariable2 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
 			codeBuffer.emit(newValue2 + " = zext i1 0 to i32");
 			codeBuffer.emit("store i32 " + newValue2 + ", i32* " + newVariable2);
@@ -127,14 +127,119 @@ Statement :
 		{
 			codeBuffer.emit(newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
 			string newVariable2 = codeGenerator.freshRegister();
-			codeBuffer.emit(newVariable2 + " = zext i8 " + $4->getVariable() + " to i32");
+			codeBuffer.emit(newVariable2 + " = zext i8 " + $4->getRegName() + " to i32");
 			codeBuffer.emit("store i32 " + newVariable2 + ", i32* " + newVariable1);
 		}
 		else
 		{
 			string code1 = newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
-			string code2 = "store i32 " + $4->getVariable() + ", i32* " + newVariable1;
+			string code2 = "store i32 " + $4->getRegName() + ", i32* " + newVariable1;
 			codeBuffer.emit(code1);
 			codeBuffer.emit(code2);
 		}
-    }
+    };
+
+Exp: ID
+	{
+		bool exists = scopeManager.findSymbol($1->getName()) != -1; // deesn't exist
+		if(!exists)
+		{
+			output::errorUndef(yylineno, $1->getName());
+			exit(0);
+		}
+		shared_ptr<Symbol> symbol = scopeManager.getSymbol($1->getName());
+        string typeOfId = symbol->getType(); // TODO: check if function!
+        if(typeOfId == "FUNCTION") {
+            output::errorUndef(yylineno, $1->getName());
+			exit(0);
+        }
+		string varOffset = codeGenerator.intToString(symbol->getOffset());
+        string addressVariable = codeGenerator.freshRegister();
+        string valueVariable = codeGenerator.freshRegister();
+        codeBuffer.emit(addressVariable + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
+        codeBuffer.emit(valueVariable + " = load i32, i32* " + addressVariable);
+        string trueLabel = codeBuffer.freshLabel();
+        string falseLabel = codeBuffer.freshLabel();
+        string finalValueRegister;
+        if (typeOfId == "BOOL")
+		{
+			string truncValueReg = codeGenerator.freshRegister();
+			string truncCommandCode = truncValueReg + " = trunc i32 " + valueVariable + " to i1";
+			codeBuffer.emit(truncCommandCode);
+            codeBuffer.emit("br i1 " + truncValueReg + ", label %" + trueLabel + ", label %" + falseLabel);
+			finalValueRegister = truncValueReg ;
+		}
+        else {
+            finalValueRegister = valueVariable ;
+        }
+        $$ = new Symbol(typeOfId, $1->getName(), finalValueRegister, -1, trueLabel, falseLabel);
+	}
+
+Type: INT  { $$ = new Symbol("INT", "INT");   }
+	| BYTE { $$ = new Symbol("BYTE", "BYTE"); }
+	| BOOL { $$ = new Symbol("BOOL", "BOOL"); };
+
+FINISH:
+{
+    scopeManager.popScope();
+};
+
+%%
+
+int main()
+{
+	/* -- initialize the system -- */
+	int offset = scopeManager.getOffset();
+	scopeManager.insertSymbol(shared_ptr<Function>(new Function("print", offset, "VOID", {"STRING"})));
+	scopeManager.insertSymbol(shared_ptr<Function>(new Function("printi", offset, "VOID", {"INT"})));
+	scopeManager.insertSymbol(shared_ptr<Function>(new Function("readi", offset, "INT", {"INT"})));
+
+	codeBuffer.emitGlobal("declare i32 @printf(i8*, ...)");
+	codeBuffer.emitGlobal("declare i32 @scanf(i8*, ...)");
+	codeBuffer.emitGlobal("declare void @exit(i32)");
+	codeBuffer.emitGlobal("@.int_specifier = constant [4 x i8] c\"%d\\0A\\00\"");
+	codeBuffer.emitGlobal("@.int_specifier_scan = constant [3 x i8] c\"%d\\00\"");
+	codeBuffer.emitGlobal("@.str_specifier = constant [4 x i8] c\"%s\\0A\\00\"");
+	codeBuffer.emitGlobal("@.zero_div_string = constant [23 x i8] c\"Error division by zero\\00\""); // ""
+
+	codeBuffer.emit("define void @print(i8*) {");
+	codeBuffer.emit("%spec_ptr = getelementptr [4 x i8], [4 x i8]* @.str_specifier, i32 0, i32 0");
+	codeBuffer.emit("call i32 (i8*, ...) @printf(i8* %spec_ptr, i8* %0)");
+	codeBuffer.emit("ret void");
+	codeBuffer.emit("}");
+
+	codeBuffer.emit("define void @printi(i32) {");
+	codeBuffer.emit("%spec_ptr = getelementptr [4 x i8], [4 x i8]* @.int_specifier, i32 0, i32 0");
+	codeBuffer.emit("call i32 (i8*, ...) @printf(i8* %spec_ptr, i32 %0)");
+	codeBuffer.emit("ret void");
+	codeBuffer.emit("}");
+
+	codeBuffer.emit("define i32 @readi(i32) {");
+	codeBuffer.emit("%ret_val = alloca i32");
+	codeBuffer.emit("%spec_ptr = getelementptr [3 x i8], [3 x i8]* @.int_specifier_scan, i32 0, i32 0");
+	codeBuffer.emit("call i32 (i8*, ...) @scanf(i8* %spec_ptr, i32* %ret_val)");
+	codeBuffer.emit("%val = load i32, i32* %ret_val");
+	codeBuffer.emit("ret i32 %val");
+	codeBuffer.emit("}");
+
+	codeBuffer.emit("define i32 @main(){");
+	// alloca 50 local variables on stack :
+	codeBuffer.emit("%size = add i32 50, 0");
+	codeBuffer.emit("%stack_ptr = alloca [50 x i32]");
+	int parserReturnVal = yyparse();
+	codeBuffer.emit("ret i32 0");
+	codeBuffer.emit("}");
+
+	if (!parserReturnVal)
+	{
+		scopeManager.popScope();
+		codeBuffer.printGlobalBuffer();
+		codeBuffer.printCodeBuffer();
+	}
+	return parserReturnVal;
+}
+
+void yyerror(const char *message)
+{
+	output::errorSyn(yylineno);
+}

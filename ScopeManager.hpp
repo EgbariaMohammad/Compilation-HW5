@@ -17,8 +17,8 @@ enum class ScopeType
 {
     GLOBAL,
     FUNCTION,
-    WHILE,
-    IF,
+    WHILE_LOOP,
+    IF_STATEMENT,
     BLOCK,
 };
 

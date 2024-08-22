@@ -22,8 +22,10 @@ private:
     string name;
     string regName;
     int offset;
+    string trueLabel;
+    string falseLabel;
 public:
-    Symbol(const string& type, const string& name, string registerName="NONE", int offset = -1);
+    Symbol(const string& type, const string& name, string registerName="NONE", int offset = -1, const string& trueLabel = "", const string& falseLabel = "");
     Symbol(const Symbol& e) = default;
     virtual ~Symbol() = default;
 
@@ -31,11 +33,17 @@ public:
     const string& getName() const;
     const string& getRegName() const;
     int getOffset() const;
+    string getTrueLabel() const;
+    string getFalseLabel() const;
 
     void setType(const string& type);
     void setName(const string& name);
+    virtual int getValue() const { return -100; }
+    virtual string getStringValue() const { return "NOT Overriden"; }
     void setRegName(const string& registerName);
     void setOffset(int offset);
+    void setTrueLabel(const string& label);
+    void setFalseLabel(const string& label);
 };
 
 class Num : public Symbol
@@ -43,7 +51,7 @@ class Num : public Symbol
     int val;
 public:
     Num(const string& name, int value, string registerName="NONE", int offset = -1);
-    virtual int getValue() const;
+    virtual int getValue() const override;
 };
 
 
@@ -52,7 +60,7 @@ class myString : public Symbol
     string val;
 public:
     myString(const string& name, const string& value, string registerName="NONE", int offset = -1);
-    string getStringValue() const;
+    string getStringValue() const override;
 };
 
 class Function : public Symbol {
@@ -60,8 +68,7 @@ private:
     string returnType;
     vector<string> parametersTypes;
 public:
-    Function(const string& name, int offset, string returnType = "", vector<string> parametersTypes = vector<string>()) :
-        Symbol("FUNCTION", name, "NONE", offset), returnType(returnType), parametersTypes(parametersTypes) {}
+    Function(const string& name, int offset, string returnType = "", vector<string> parametersTypes = vector<string>());
     string getReturnType() const;
     vector<string>& getParametersTypes();
 };
