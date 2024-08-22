@@ -249,10 +249,9 @@ Statement :
 Call: ID LPAREN Exp RPAREN
 	{
 		bool functionExists = scopeManager.findSymbol($1->getName());
-		bool variableExist = scopeManager.findSymbol($3->getName()) || $3->getType() == "STRING";
-		if(!functionExists or !variableExist)
+		if(!functionExists)
 		{
-			!functionExists ? output::errorUndefFunc(yylineno, $1->getName()) : output::errorUndef(yylineno, $3->getName());
+			output::errorUndefFunc(yylineno, $1->getName());
 			exit(0);
 		}
 		shared_ptr<Symbol> symbol = scopeManager.getSymbol($1->getName());
@@ -625,7 +624,7 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 		bool isIntType  = $2->getType() == "INT";
 		bool isByteExp  = $4->getType() == "BYTE";
 		bool isIntExp   = $4->getType() == "INT";
-		if( ! (isByteExp and isIntType) or (isIntExp and isByteType) )
+		if( (!isIntType and !isByteType) or (!isByteExp and !isIntExp) )
 		{
 			output::errorMismatch(yylineno);
 			exit(0);
