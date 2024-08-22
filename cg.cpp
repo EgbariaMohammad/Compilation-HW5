@@ -67,3 +67,10 @@ void CodeGenerator::increaseStringCounter() {
 int CodeGenerator::getStringCounter() {
 	return stringCounter;
 }
+
+string CodeGenerator::getMostRecentTrueLabel() const {
+	return mostRecentTrueLabel+":";
+}
+void CodeGenerator::setMostRecentTrueLabel(const string& label) {
+	mostRecentTrueLabel = label;
+}

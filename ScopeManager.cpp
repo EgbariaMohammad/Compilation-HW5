@@ -31,6 +31,7 @@ void ScopeManager::popScope()
         throw EmptyManager();
     offsets.pop();
     scopes.pop_back();
+    output::endScope();
 }
 
 void ScopeManager::insertSymbol(const shared_ptr<Symbol>& e)

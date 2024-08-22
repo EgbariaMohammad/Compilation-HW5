@@ -43,12 +43,15 @@ class CodeGenerator{
     void operator=(const CodeGenerator&) = delete;
 	int counterReg = 1;
 	int stringCounter = 0;
+	string mostRecentTrueLabel;
 public:
 	static CodeGenerator &getInstance();
 	string freshRegister();
 	static string intToString(int offset);
 	void increaseStringCounter();
 	int getStringCounter();
+	string getMostRecentTrueLabel() const;
+	void setMostRecentTrueLabel(const string& label);
 };
 
 #endif

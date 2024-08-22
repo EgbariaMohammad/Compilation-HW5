@@ -111,7 +111,7 @@ Statement : LBRACE
 
 		// if we get here all is ok!, add the variable to the symbol table
 		int variableOffset = scopeManager.getOffset();
-		shared_ptr<Symbol> newSymbol = make_shared<Symbol>($2->getName(), $1->getType(), "NO VARIABLE",variableOffset);
+		shared_ptr<Symbol> newSymbol = make_shared<Symbol>($1->getType(), $2->getName(), "NO VARIABLE",variableOffset);
 		scopeManager.insertSymbol(newSymbol);
 		string varOffset = codeGenerator.intToString(variableOffset);
 		if($4->getType() == "BOOL")
@@ -159,7 +159,7 @@ Statement : LBRACE
 			exit(0);
 		}
 		// now check if we are assining the right type to the variable!
-		shared_ptr<Symbol> variable = scopeManager.getSymbol($1->getName());
+		shared_ptr<Symbol>& variable = scopeManager.getSymbol($1->getName());
 		if(variable->getType() == "FUNCTION")
 		{
 			output::errorUndef(yylineno, variable->getName());

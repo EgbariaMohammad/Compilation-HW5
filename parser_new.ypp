@@ -199,7 +199,16 @@ Statement :
 			codeBuffer.emit(code1);
 			codeBuffer.emit(code2);
 		}
-	};
+	}
+	| Call SC {}
+	| RETURN SC { codeBuffer.emit("ret i32 0"); }
+	| IF LPAREN Exp { codeBuffer.emit(codeGenerator.getMostRecentTrueLabel()); } RPAREN Statement
+	{
+		scopeManager.pushScope(ScopeType::IF_STATEMENT);
+		codeBuffer.emit("br label %" + $3->getFalseLabel());
+		codeBuffer.emit($3->getFalseLabel() + ":");
+		scopeManager.popScope();
+	}
 
 Call: ID LPAREN Exp RPAREN
 	{
@@ -235,6 +244,7 @@ Exp: ID
 			codeBuffer.emit(truncCommandCode);
             codeBuffer.emit("br i1 " + truncValueReg + ", label %" + trueLabel + ", label %" + falseLabel);
 			finalValueRegister = truncValueReg ;
+			codeGenerator.setMostRecentTrueLabel(trueLabel);
 		}
         else {
             finalValueRegister = valueVariable ;
