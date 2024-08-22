@@ -210,12 +210,182 @@ Statement :
 		scopeManager.popScope();
 	}
 
-Call: ID LPAREN Exp RPAREN
+Call: ID LPAREN Exp RPAREN {};
+
+Type: INT  { $$ = new Symbol("INT", "INT");   }
+	| BYTE { $$ = new Symbol("BYTE", "BYTE"); }
+	| BOOL { $$ = new Symbol("BOOL", "BOOL"); };
+
+Exp: LPAREN Exp RPAREN { $$ = $2; }
+	| Exp MUL Exp
 	{
+		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
+		bool exp2IsNumericType = $3->getType() == "INT" or $3->getType() == "BYTE";
+		if (!exp1IsNumericType or !exp2IsNumericType)
+		{
+			output::errorMismatch(yylineno);
+			exit(0);
+		}
+		bool intMultiplication = $1->getType() == "INT" or $3->getType() == "INT";
+		string resultType = intMultiplication ? "INT" : "BYTE";
+		$$ = new Symbol(resultType, resultType);
 
-	};
+		string resultRegister = codeGenerator.freshRegister();
+		string storeCode = resultRegister + " = mul i32 " + $1->getRegName() + "," + $3->getRegName();
+		codeBuffer.emit(storeCode);
+		if (resultType == "BYTE")
+		{
+			string truncValue = codeGenerator.freshRegister();
+			string truncValueCode = truncValue + " = trunc i32 " + resultRegister + " to i8";
+			codeBuffer.emit(truncValueCode);
+			string zextValue = codeGenerator.freshRegister();
+			string zextValueCode = zextValue + " = zext i8 " + truncValue + " to i32";
+			codeBuffer.emit(zextValueCode);
+			$$->setRegName(zextValue);
+		}
+		else{
+			$$->setRegName(resultRegister);
+		}
+		$$->setType(resultType);
+	}
+	| Exp DIV Exp
+	{
+		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
+		bool exp2IsNumericType = $3->getType() == "INT" or $3->getType() == "BYTE";
+		if (!exp1IsNumericType || !exp2IsNumericType)
+		{
+			output::errorMismatch(yylineno);
+			exit(0);
+		}
+		bool intDivision = $1->getType() == "INT" or $3->getType() == "INT";
+		string resultType = intDivision ? "INT" : "BYTE";
+		$$ = new Symbol(resultType, resultType);
 
-Exp: ID
+		// TODO: checl division by zero;
+
+		// continunte here if not error
+		string resultRegister = codeGenerator.freshRegister();
+		string divisionType = (resultType == "BYTE") ? " = udiv i32 " : " = sdiv i32 ";
+		string divisionCommand = resultRegister + divisionType + $1->getRegName() + "," + $3->getRegName();
+		codeBuffer.emit(divisionCommand);
+		$$->setRegName(resultRegister);
+		$$->setType(resultType);
+	}
+	| Exp ADD Exp
+	{
+		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
+		bool exp2IsNumericType = $3->getType() == "INT" or $3->getType() == "BYTE";
+		if (!exp1IsNumericType || !exp2IsNumericType)
+		{
+			output::errorMismatch(yylineno);
+			exit(0);
+		}
+		bool intAdditive = $1->getType() == "INT" or $3->getType() == "INT";
+		string resultType = intAdditive ? "INT" : "BYTE";
+		$$ = new Symbol(resultType, resultType);
+
+		string resultRegister = codeGenerator.freshRegister();
+		string addCommand = resultRegister + " = add i32 " + $1->getRegName() + "," + $3->getRegName();
+		codeBuffer.emit(addCommand);
+		if (resultType == "BYTE")
+		{
+			string truncValue = codeGenerator.freshRegister();
+			string truncCommandCode = truncValue + " = trunc i32 " + resultRegister + " to i8";
+			codeBuffer.emit(truncCommandCode);
+			string zextValue = codeGenerator.freshRegister();
+			string zextCommandCode = zextValue + " = zext i8 " + truncValue + " to i32";
+			codeBuffer.emit(zextCommandCode);
+			$$->setRegName(zextValue);
+		}
+		else{
+			$$->setRegName(resultRegister);
+		}
+		$$->setType(resultType);
+	}
+	| Exp SUB Exp
+	{
+		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
+		bool exp2IsNumericType = $3->getType() == "INT" or $3->getType() == "BYTE";
+		if (!exp1IsNumericType || !exp2IsNumericType)
+		{
+			output::errorMismatch(yylineno);
+			exit(0);
+		}
+		bool intSubtraction = $1->getType() == "INT" or $3->getType() == "INT";
+		string resultType = intSubtraction ? "INT" : "BYTE";
+		$$ = new Symbol(resultType, resultType);
+
+		string resultRegister = codeGenerator.freshRegister();
+		string addCommand = resultRegister + " = sub i32 " + $1->getRegName() + "," + $3->getRegName();
+		codeBuffer.emit(addCommand);
+		if (resultType == "BYTE")
+		{
+			string truncValue = codeGenerator.freshRegister();
+			string truncCommandCode = truncValue + " = trunc i32 " + resultRegister + " to i8";
+			codeBuffer.emit(truncCommandCode);
+			string zextValue = codeGenerator.freshRegister();
+			string zextCommandCode = zextValue + " = zext i8 " + truncValue + " to i32";
+			codeBuffer.emit(zextCommandCode);
+			$$->setRegName(zextValue);
+		}
+		else{
+			$$->setRegName(resultRegister);
+		}
+		$$->setType(resultType);
+	}
+	| Exp NONASSOCCRELOP Exp
+	{
+		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
+		bool exp2IsNumericType = $3->getType() == "INT" or $3->getType() == "BYTE";
+		if (!exp1IsNumericType || !exp2IsNumericType)
+		{
+			output::errorMismatch(yylineno);
+			exit(0);
+		}
+		$$ = new Symbol("BOOL", "BOOL");
+
+		bool isSigned = ($1->getType() == "INT" or $3->getType() == "INT");
+		string equalOperator = isSigned ?  "sgt" :"ugt";
+		if ($2->getName() == ">=")
+			equalOperator = isSigned ?  "sge" : "uge";
+		else if ($2->getName() == "<")
+			equalOperator = isSigned ?  "slt" : "ult";
+		else if ($2->getName() == "<=")
+			equalOperator = isSigned ?  "sle" : "ule";
+
+		string newRegister = codeGenerator.freshRegister();
+		codeBuffer.emit(newRegister + " = icmp " + equalOperator + " i32 " + $1->getRegName() + ", " + $3->getRegName());
+
+		string trueLabel = codeBuffer.freshLabel();
+        string falseLabel = codeBuffer.freshLabel();
+		codeBuffer.emit("br i1 " + newRegister + ", label %" + trueLabel + ", label %" + falseLabel);
+
+		$$= new Symbol("BOOL", "BOOL", newRegister, -1, trueLabel, falseLabel);
+		codeGenerator.setMostRecentTrueLabel(trueLabel);
+	}
+	| Exp EQUALITY Exp
+	{
+		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
+		bool exp2IsNumericType = $3->getType() == "INT" or $3->getType() == "BYTE";
+		if (!exp1IsNumericType or !exp2IsNumericType)
+		{
+			output::errorMismatch(yylineno);
+			exit(0);
+		}
+		string equalCmd = $2->getType() == "==" ? "eq" : "ne";
+		string newRegister = codeGenerator.freshRegister();
+		string cmpCommand;
+		cmpCommand = newRegister +" = icmp "+ equalCmd +" i32 " + $1->getRegName() + ", " + $3->getRegName() ;
+		codeBuffer.emit(cmpCommand);
+
+		string trueLabel = codeBuffer.freshLabel();
+        string falseLabel = codeBuffer.freshLabel();
+		codeBuffer.emit("br i1 " + newRegister + ", label %" + trueLabel + ", label %" + falseLabel);
+
+		$$= new Symbol("BOOL", "BOOL", newRegister, -1, trueLabel, falseLabel);
+		codeGenerator.setMostRecentTrueLabel(trueLabel);
+	}
+	| ID
 	{
 		bool exists = scopeManager.findSymbol($1->getName()) == true;
 		if(!exists)
@@ -306,10 +476,6 @@ Exp: ID
 		codeBuffer.emit(s);
 		$$->setRegName(var);
 	}
-
-Type: INT  { $$ = new Symbol("INT", "INT");   }
-	| BYTE { $$ = new Symbol("BYTE", "BYTE"); }
-	| BOOL { $$ = new Symbol("BOOL", "BOOL"); };
 
 FINISH:
 {
