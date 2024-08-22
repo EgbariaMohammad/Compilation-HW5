@@ -214,6 +214,37 @@ Statement :
 		codeBuffer.emit(tempLabel + ":");
 		scopeManager.popScope();
 	}
+	| WHILE PUSH_WHILE_SCOPE MARKER LPAREN Exp RPAREN
+	{
+		CodeBuffer::instance().emit($5->getTrueLabel() + ":");
+	}
+	Statement
+	{
+		codeBuffer.emit("br label %" + scopeManager.getLastScopeStartLabel());
+		codeBuffer.emit($5->getFalseLabel() + ":");
+		codeBuffer.emit("br label %" + scopeManager.getLastScopeEndLabel());
+		codeBuffer.emit(scopeManager.getLastScopeEndLabel() + ":");
+	} FINISH
+	| BREAK SC
+	{
+		bool inWhile = scopeManager.searchIfScopeOpen(ScopeType::WHILE_LOOP);
+		if (!inWhile)
+		{
+			output::errorUnexpectedBreak(yylineno);
+			exit(0);
+		}
+		codeBuffer.emit("br label %" + scopeManager.getLastScopeStartLabel());
+	}
+	| CONTINUE SC
+	{
+		bool inWhile = scopeManager.searchIfScopeOpen(ScopeType::WHILE_LOOP);
+		if (!inWhile)
+		{
+			output::errorUnexpectedContinue(yylineno);
+			exit(0);
+		}
+		codeBuffer.emit("br label %" + scopeManager.getLastScopeStartLabel());
+	};
 
 Call: ID LPAREN Exp RPAREN
 	{
@@ -384,7 +415,6 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 			output::errorMismatch(yylineno);
 			exit(0);
 		}
-		$$ = new Symbol("BOOL", "BOOL");
 
 		bool isSigned = ($1->getType() == "INT" or $3->getType() == "INT");
 		string equalOperator = isSigned ?  "sgt" :"ugt";
@@ -402,7 +432,7 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
         string falseLabel = codeBuffer.freshLabel();
 		codeBuffer.emit("br i1 " + newRegister + ", label %" + trueLabel + ", label %" + falseLabel);
 
-		$$= new Symbol("BOOL", "BOOL", newRegister, -1, trueLabel, falseLabel);
+		$$ = new Symbol("BOOL", "BOOL", newRegister, -1, trueLabel, falseLabel);
 		codeGenerator.setMostRecentTrueLabel(trueLabel);
 	}
 	| Exp EQUALITY Exp
@@ -526,6 +556,17 @@ FINISH:
 
 A: { codeBuffer.emit(codeGenerator.getMostRecentTrueLabel()); }
 PUSH_SCOPE: { scopeManager.pushScope(ScopeType::BLOCK); }
+PUSH_WHILE_SCOPE: { scopeManager.pushScope(ScopeType::WHILE_LOOP); }
+
+MARKER:
+{
+	string startLabel = codeBuffer.freshLabel();
+	string endLabel = codeBuffer.freshLabel();
+	scopeManager.setLastScopeStartLabel(startLabel);
+	scopeManager.setLastScopeEndLabel(endLabel);
+	codeBuffer.emit("br label %" + startLabel);
+	codeBuffer.emit(startLabel + ":");
+}
 %%
 
 int main()
