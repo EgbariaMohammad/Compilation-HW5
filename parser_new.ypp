@@ -60,7 +60,7 @@ Statement :
     | Type ID SC
     {
         // check if ID was declared in this scope previously
-        if(scopeManager.findSymbolInCurrentScope($2->getName()) == -1)
+        if(scopeManager.findSymbolInCurrentScope($2->getName()) == true)
 		{
 			output::errorDef(yylineno, $2->getName());
             exit(0);
@@ -81,7 +81,7 @@ Statement :
         bool expInt = $4->getType() == "INT";
 		bool expByte = $4->getType() == "BYTE";
 		bool idInt = $1->getType() == "INT";
-
+		scopeManager.printScope();
         // check if the assign is valid!
         if($1->getType() == "BYTE" and $4->getValue() > 255)
 		{
@@ -93,9 +93,9 @@ Statement :
 			output::errorMismatch(yylineno);
 			exit(0);
 		}
-		else if(scopeManager.findSymbolInCurrentScope($2->getName()) != -1)
+		else if(scopeManager.findSymbolInCurrentScope($2->getName()) == true)
 		{
-			output::errorDef(yylineno, $2->getType());
+			output::errorDef(yylineno, $2->getName());
             exit(0);
 		}
 
@@ -139,9 +139,14 @@ Statement :
 		}
     };
 
+Call: ID LPAREN Exp RPAREN
+	{
+
+	};
+
 Exp: ID
 	{
-		bool exists = scopeManager.findSymbol($1->getName()) != -1; // deesn't exist
+		bool exists = scopeManager.findSymbol($1->getName()) == true;
 		if(!exists)
 		{
 			output::errorUndef(yylineno, $1->getName());
@@ -173,6 +178,61 @@ Exp: ID
             finalValueRegister = valueVariable ;
         }
         $$ = new Symbol(typeOfId, $1->getName(), finalValueRegister, -1, trueLabel, falseLabel);
+	}
+
+	| Call { $$ = $1; }
+
+	| NUM {
+		string variable = codeGenerator.freshRegister();
+		string code = variable + "= add i32 " + to_string($1->getValue()) + ",0";
+		codeBuffer.emit(code);
+		$$->setRegName(variable);
+	}
+
+	| NUM B
+	{
+		int value = $1->getValue();
+		if (value > 255)
+		{
+			output::errorByteTooLarge(yylineno, std::to_string(value));
+			exit(0);
+		}
+		string stringValue = std::to_string(value);
+		$$ = new Symbol("BYTE", std::to_string($1->getValue()));
+		string variable = codeGenerator.freshRegister();
+		string code = variable + "= add i32 " + std::to_string($1->getValue()) + ",0";
+		codeBuffer.emit(code);
+		$$->setRegName(variable);
+	}
+
+	| STRING {
+		string text = $1->getStringValue();
+		text = text.substr(1, text.size() - 2); // removing the " from start and end
+		string typeOfString = "[" + std::to_string(text.size() + 1) + " x i8]";
+		string nameOfString = "@.STRING_" + std::to_string(codeGenerator.getStringCounter()) + "_str";
+		codeBuffer.emitGlobal(nameOfString + " = internal constant" + typeOfString + " c\"" + text + "\\00\"");
+		codeGenerator.increaseStringCounter();
+		string var = codeGenerator.freshRegister();
+		string command = var + " = getelementptr " + typeOfString + ", " + typeOfString + "* " + nameOfString + ", i32 0, i32 0";
+		codeBuffer.emit(command);
+		$$ = new Symbol("STRING", $1->getType());
+		$$->setRegName(var);
+	}
+
+	| TRUE {
+		$$ = $1;
+		string var = codeGenerator.freshRegister();
+		string code = var + " = add i1 1,0";
+		codeBuffer.emit(code);
+		$$->setRegName(var);
+	}
+
+	| FALSE {
+		$$ = $1;
+		string var = codeGenerator.freshRegister();
+		string s = var + " = add i1 0,0";
+		codeBuffer.emit(s);
+		$$->setRegName(var);
 	}
 
 Type: INT  { $$ = new Symbol("INT", "INT");   }
