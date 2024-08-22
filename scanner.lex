@@ -61,17 +61,17 @@ continue return CONTINUE;
 }
 
 {Id} {
-    yylval = new Symbol("Identifier", yytext);
+    yylval = new Symbol(yytext, yytext);
     return ID;
 }
 
 {Num} {
-    yylval = new Num("Number", atoi(yytext));
+    yylval = new Num(yytext, atoi(yytext));
     return NUM;
 }
 
 {STR} {
-    yylval = new myString("STRING", yytext);
+    yylval = new myString(yytext, yytext);
     return STRING;
 }
 

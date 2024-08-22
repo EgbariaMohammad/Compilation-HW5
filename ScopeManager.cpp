@@ -39,18 +39,18 @@ void ScopeManager::insertSymbol(const shared_ptr<Symbol>& e)
     offsets.top()++;
 }
 
-int ScopeManager::findSymbol(const string& name) const
+bool ScopeManager::findSymbol(const string& name) const
 {
     for (int i = scopes.size() - 1; i >= 0; i--)
     {
         int index = scopes[i].first->findSymbol(name);
         if (index != -1)
-            return index;
+            return true;
     }
-    return -1;
+    return false;
 }
 
-int ScopeManager::findSymbolInCurrentScope(const string& name) const
+bool ScopeManager::findSymbolInCurrentScope(const string& name) const
 {
     int i = scopes.size() - 1;
     return scopes[i].first->findSymbol(name);

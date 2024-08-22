@@ -37,8 +37,8 @@ public:
     void pushScope(ScopeType type);
     void popScope();
     void insertSymbol(const shared_ptr<Symbol>& e);
-    int findSymbol(const string& name) const;
-    int findSymbolInCurrentScope(const string& name) const;
+    bool findSymbol(const string& name) const;
+    bool findSymbolInCurrentScope(const string& name) const;
     bool searchIfScopeOpen(ScopeType type) const;
 
     shared_ptr<Symbol> getSymbol(const string& name) const;
