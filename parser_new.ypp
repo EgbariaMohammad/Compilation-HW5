@@ -573,7 +573,25 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 		codeBuffer.emit($2->getTrueLabel() + ":");
 		codeBuffer.emit("br label %" + falseLabel);
 		codeGenerator.setMostRecentTrueLabel(trueLabel);
-	};
+	}
+	| Exp AND { CodeBuffer::instance().emit($1->getTrueLabel() + ":"); } Exp
+	{
+		if ($4->getType() != "BOOL" or $1->getType() != "BOOL")
+		{
+			output::errorMismatch(yylineno);
+			exit(0);
+		}
+		string trueLabel = codeBuffer.freshLabel();
+		string falseLabel = codeBuffer.freshLabel();
+		codeBuffer.emit($4->getTrueLabel() + ":");
+		codeBuffer.emit("br label %" + trueLabel);
+		codeBuffer.emit($1->getFalseLabel() + ":");
+		codeBuffer.emit("br label %" + falseLabel);
+		codeBuffer.emit($4->getFalseLabel() + ":");
+		codeBuffer.emit("br label %" + falseLabel);
+		$$ = new Symbol("BOOL", $1->getName(), $1->getRegName(), -1, trueLabel, falseLabel);
+		codeGenerator.setMostRecentTrueLabel(trueLabel);
+	}
 
 FINISH:
 {
