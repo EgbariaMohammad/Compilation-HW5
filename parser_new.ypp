@@ -406,57 +406,6 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 		}
 		$$->setType(resultType);
 	}
-	| Exp NONASSOCCRELOP Exp
-	{
-		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
-		bool exp2IsNumericType = $3->getType() == "INT" or $3->getType() == "BYTE";
-		if (!exp1IsNumericType || !exp2IsNumericType)
-		{
-			output::errorMismatch(yylineno);
-			exit(0);
-		}
-
-		bool isSigned = ($1->getType() == "INT" or $3->getType() == "INT");
-		string equalOperator = isSigned ?  "sgt" :"ugt";
-		if ($2->getName() == ">=")
-			equalOperator = isSigned ?  "sge" : "uge";
-		else if ($2->getName() == "<")
-			equalOperator = isSigned ?  "slt" : "ult";
-		else if ($2->getName() == "<=")
-			equalOperator = isSigned ?  "sle" : "ule";
-
-		string newRegister = codeGenerator.freshRegister();
-		codeBuffer.emit(newRegister + " = icmp " + equalOperator + " i32 " + $1->getRegName() + ", " + $3->getRegName());
-
-		string trueLabel = codeBuffer.freshLabel();
-        string falseLabel = codeBuffer.freshLabel();
-		codeBuffer.emit("br i1 " + newRegister + ", label %" + trueLabel + ", label %" + falseLabel);
-
-		$$ = new Symbol("BOOL", "BOOL", newRegister, -1, trueLabel, falseLabel);
-		codeGenerator.setMostRecentTrueLabel(trueLabel);
-	}
-	| Exp EQUALITY Exp
-	{
-		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
-		bool exp2IsNumericType = $3->getType() == "INT" or $3->getType() == "BYTE";
-		if (!exp1IsNumericType or !exp2IsNumericType)
-		{
-			output::errorMismatch(yylineno);
-			exit(0);
-		}
-		string equalCmd = $2->getType() == "==" ? "eq" : "ne";
-		string newRegister = codeGenerator.freshRegister();
-		string cmpCommand;
-		cmpCommand = newRegister +" = icmp "+ equalCmd +" i32 " + $1->getRegName() + ", " + $3->getRegName() ;
-		codeBuffer.emit(cmpCommand);
-
-		string trueLabel = codeBuffer.freshLabel();
-        string falseLabel = codeBuffer.freshLabel();
-		codeBuffer.emit("br i1 " + newRegister + ", label %" + trueLabel + ", label %" + falseLabel);
-
-		$$= new Symbol("BOOL", "BOOL", newRegister, -1, trueLabel, falseLabel);
-		codeGenerator.setMostRecentTrueLabel(trueLabel);
-	}
 	| ID
 	{
 		bool exists = scopeManager.findSymbol($1->getName()) == true;
@@ -506,12 +455,12 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 	| NUM B
 	{
 		int value = $1->getValue();
+		string stringValue = std::to_string(value);
 		if (value > 255)
 		{
-			output::errorByteTooLarge(yylineno, std::to_string(value));
+			output::errorByteTooLarge(yylineno, stringValue);
 			exit(0);
 		}
-		string stringValue = std::to_string(value);
 		$$ = new Symbol("BYTE", "BYTE");
 		string variable = codeGenerator.freshRegister();
 		string code = variable + "= add i32 " + stringValue + ",0";
@@ -609,6 +558,78 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 		codeBuffer.emit("br label %" + falseLabel);
 		$$ = new Symbol("BOOL", $1->getName(), $1->getRegName(), -1, trueLabel, falseLabel);
 		codeGenerator.setMostRecentTrueLabel(trueLabel);
+	}
+		| Exp NONASSOCCRELOP Exp
+	{
+		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
+		bool exp2IsNumericType = $3->getType() == "INT" or $3->getType() == "BYTE";
+		if (!exp1IsNumericType || !exp2IsNumericType)
+		{
+			output::errorMismatch(yylineno);
+			exit(0);
+		}
+
+		bool isSigned = ($1->getType() == "INT" or $3->getType() == "INT");
+		string equalOperator = isSigned ?  "sgt" :"ugt";
+		if ($2->getName() == ">=")
+			equalOperator = isSigned ?  "sge" : "uge";
+		else if ($2->getName() == "<")
+			equalOperator = isSigned ?  "slt" : "ult";
+		else if ($2->getName() == "<=")
+			equalOperator = isSigned ?  "sle" : "ule";
+
+		string newRegister = codeGenerator.freshRegister();
+		codeBuffer.emit(newRegister + " = icmp " + equalOperator + " i32 " + $1->getRegName() + ", " + $3->getRegName());
+
+		string trueLabel = codeBuffer.freshLabel();
+        string falseLabel = codeBuffer.freshLabel();
+		codeBuffer.emit("br i1 " + newRegister + ", label %" + trueLabel + ", label %" + falseLabel);
+
+		$$ = new Symbol("BOOL", "BOOL", newRegister, -1, trueLabel, falseLabel);
+		codeGenerator.setMostRecentTrueLabel(trueLabel);
+	}
+	| Exp EQUALITY Exp
+	{
+		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
+		bool exp2IsNumericType = $3->getType() == "INT" or $3->getType() == "BYTE";
+		if (!exp1IsNumericType or !exp2IsNumericType)
+		{
+			output::errorMismatch(yylineno);
+			exit(0);
+		}
+		string equalCmd = $2->getType() == "==" ? "eq" : "ne";
+		string newRegister = codeGenerator.freshRegister();
+		string cmpCommand;
+		cmpCommand = newRegister +" = icmp "+ equalCmd +" i32 " + $1->getRegName() + ", " + $3->getRegName() ;
+		codeBuffer.emit(cmpCommand);
+
+		string trueLabel = codeBuffer.freshLabel();
+        string falseLabel = codeBuffer.freshLabel();
+		codeBuffer.emit("br i1 " + newRegister + ", label %" + trueLabel + ", label %" + falseLabel);
+
+		$$= new Symbol("BOOL", "BOOL", newRegister, -1, trueLabel, falseLabel);
+		codeGenerator.setMostRecentTrueLabel(trueLabel);
+	}
+	| LPAREN Type RPAREN Exp
+	{
+		bool isByteType = $2->getType() == "BYTE";
+		bool isIntType  = $2->getType() == "INT";
+		bool isByteExp  = $4->getType() == "BYTE";
+		bool isIntExp   = $4->getType() == "INT";
+		if( ! (isByteExp and isIntType) or (isIntExp and isByteType) )
+		{
+			output::errorMismatch(yylineno);
+			exit(0);
+		}
+		// check if casting to bye is valid
+		if(isByteType and ($4->getValue()>255 or $4->getValue()<0))
+		{
+			string stringValue = codeGenerator.intToString($4->getValue());
+			output::errorByteTooLarge(yylineno, stringValue);
+			exit(0);
+		}
+		$$ = $4;
+		$$->setType($2->getType());
 	}
 
 FINISH:
