@@ -76,3 +76,65 @@ Statement :
 		codeBuffer.emit(allocCode);
 		codeBuffer.emit(storeValCode);
     }
+    | Type ID ASSIGN Exp SC
+    {
+        bool expInt = $4->getType() == "INT";
+		bool expByte = $4->getType() == "BYTE";
+		bool idInt = $1->getType() == "INT";
+
+        // check if the assign is valid!
+        if($1->getType() == "BYTE" and $4->getValue() > 255)
+		{
+			output::errorByteTooLarge(yylineno,to_string($5->getValue()));
+			exit(0);
+		}
+		else if($4->getType() != $1->getType() and (!(expByte && idInt)))
+		{ // check if the variable type doesn't match the value given, but it's not int that holds a byte!
+			output::errorMismatch(yylineno);
+			exit(0);
+		}
+		else if(scopeManager.findSymbolInCurrentScope($2->getName()) != -1)
+		{
+			output::errorDef(yylineno, $2->getType());
+            exit(0);
+		}
+
+        //here we know that assign is legal and symbol doesn't exists
+        int variableOffset = scopeManager.getOffset();
+		shared_ptr<Symbol> newSymbol = make_shared<Symbol>($1->getType(),$2->getName(), "NO VARIABLE", variableOffset);
+		scopeManager.insertSymbol(newSymbol);
+        string varOffset = codeGenerator.intToString(variableOffset);
+        string newVariable1 = codeGenerator.freshRegister();
+        if($4->getType() == "BOOL")
+		{
+			string NextLabel = codeGenerator.freshLabel();
+			string newValue1 = codeGenerator.freshRegister();
+			string newValue2 = codeGenerator.freshRegister();
+			string newVariable2 = codeGenerator.freshRegister();
+			codeBuffer.emit($4.true_label + ":");
+			codeBuffer.emit(newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
+			codeBuffer.emit(newValue1 + " = zext i1 1 to i32");
+			codeBuffer.emit("store i32 " + newValue1 + ", i32* " + newVariable1);
+			codeBuffer.emit("br label %" + NextLabel);
+			codeBuffer.emit($4.false_label + ":");
+			codeBuffer.emit(newVariable2 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
+			codeBuffer.emit(newValue2 + " = zext i1 0 to i32");
+			codeBuffer.emit("store i32 " + newValue2 + ", i32* " + newVariable2);
+			codeBuffer.emit("br label %" + NextLabel);
+			codeBuffer.emit(NextLabel + ":");
+		}
+		else if($4->getType() == "BYTE")
+		{
+			codeBuffer.emit(newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
+			string newVariable2 = codeGenerator.freshRegister();
+			codeBuffer.emit(newVariable2 + " = zext i8 " + $4->getVariable() + " to i32");
+			codeBuffer.emit("store i32 " + newVariable2 + ", i32* " + newVariable1);
+		}
+		else
+		{
+			string code1 = newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
+			string code2 = "store i32 " + $4->getVariable() + ", i32* " + newVariable1;
+			codeBuffer.emit(code1);
+			codeBuffer.emit(code2);
+		}
+    }
