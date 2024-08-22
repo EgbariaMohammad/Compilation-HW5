@@ -35,4 +35,4 @@ Function::Function(const string& name, int offset, string returnType, vector<str
         Symbol("FUNCTION", name, "NONE", offset), returnType(returnType), parametersTypes(parametersTypes) {}
 
 string Function::getReturnType() const { return returnType; }
-vector<string>& Function::getParametersTypes()  { return parametersTypes; }
+const vector<string>& Function::getParametersTypes() const { return parametersTypes; }

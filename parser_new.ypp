@@ -4,6 +4,7 @@
 	#include "Symbol.hpp"
 	#include "ScopeManager.hpp"
     #include "hw3_output.hpp"
+	#include <algorithm>
 
     // *** Declarations *** //
 	ScopeManager& scopeManager = ScopeManager::getInstance();
@@ -71,7 +72,7 @@ Statement :
 
         string varOffset = codeGenerator.intToString(variableOffset);
 		string varAddress = codeGenerator.freshRegister();
-		string allocCode = varAddress + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
+		string s = varAddress + " = getelementptr i32, i32* %stack_vars, i32 " + varOffset;
 		string storeValCode = "store i32 0, i32* " + varAddress;
 		codeBuffer.emit(allocCode);
 		codeBuffer.emit(storeValCode);
@@ -81,7 +82,7 @@ Statement :
         bool expInt = $4->getType() == "INT";
 		bool expByte = $4->getType() == "BYTE";
 		bool idInt = $1->getType() == "INT";
-		scopeManager.printScope();
+
         // check if the assign is valid!
         if($1->getType() == "BYTE" and $4->getValue() > 255)
 		{
@@ -210,7 +211,42 @@ Statement :
 		scopeManager.popScope();
 	}
 
-Call: ID LPAREN Exp RPAREN {};
+Call: ID LPAREN Exp RPAREN
+	{
+		bool functionExists = scopeManager.findSymbol($1->getName());
+		if(!functionExists)
+		{
+			output::errorUndefFunc(yylineno, $1->getName());
+			exit(0);
+		}
+		shared_ptr<Symbol> symbol = scopeManager.getSymbol($1->getName());
+		if(symbol->getType() != "FUNCTION")
+		{
+			output::errorUndefFunc(yylineno, $1->getName());
+			exit(0);
+		}
+		shared_ptr<Function> function = std::dynamic_pointer_cast<Function>(symbol);
+		vector<string> params = function->getParametersTypes();
+		bool validCall = std::find(params.begin(), params.end(), $3->getType()) != params.end();
+		if(validCall == false)
+		{
+			output::errorPrototypeMismatch(yylineno, $3->getType(), params);
+			exit(0);
+		}
+		string returnValueType = function->getReturnType();
+		string callCode, returnRegister;
+		if( returnValueType != "VOID")
+		{
+			returnRegister = codeGenerator.freshRegister();
+			callCode = returnRegister + " = ";
+		}
+		string returnValSize = returnValueType == "INT" or returnValueType == "BYTE" ? "i32 " : (returnValueType == "BOOL" ? "i1 " : "void " );
+		callCode += "call " + returnValSize; // this is ok for now since we allows only one paramater;
+		callCode += "@"+$1->getName() + "(" + ($1->getName() == "print" ? "i8* " : "i32 ") + $3->getRegName() + ")";
+		codeBuffer.emit(callCode);
+		$$->setRegName(returnRegister);
+		$$->setType(returnValueType);
+	};
 
 Type: INT  { $$ = new Symbol("INT", "INT");   }
 	| BYTE { $$ = new Symbol("BYTE", "BYTE"); }
@@ -522,8 +558,8 @@ int main()
 
 	codeBuffer.emit("define i32 @main(){");
 	// alloca 50 local variables on stack :
-	codeBuffer.emit("%size = add i32 50, 0");
-	codeBuffer.emit("%stack_ptr = alloca [50 x i32]");
+	CodeBuffer::instance().emit("%size = add i32 50, 0");
+	CodeBuffer::instance().emit("%stack_ptr = alloca i32, i32 %size");
 	int parserReturnVal = yyparse();
 	codeBuffer.emit("ret i32 0");
 	codeBuffer.emit("}");

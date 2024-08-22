@@ -70,5 +70,5 @@ private:
 public:
     Function(const string& name, int offset, string returnType = "", vector<string> parametersTypes = vector<string>());
     string getReturnType() const;
-    vector<string>& getParametersTypes();
+    const vector<string>& getParametersTypes() const;
 };
