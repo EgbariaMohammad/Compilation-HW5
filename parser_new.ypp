@@ -198,7 +198,6 @@ Statement :
 	| RETURN SC { codeBuffer.emit("ret i32 0"); }
 	| IF LPAREN Exp A RPAREN PUSH_SCOPE Statement
 	{
-		scopeManager.popScope();
 		codeBuffer.emit("br label %" + $3->getFalseLabel());
 		codeBuffer.emit($3->getFalseLabel() + ":");
 		scopeManager.popScope();
@@ -224,7 +223,8 @@ Statement :
 		codeBuffer.emit($5->getFalseLabel() + ":");
 		codeBuffer.emit("br label %" + scopeManager.getLastScopeEndLabel());
 		codeBuffer.emit(scopeManager.getLastScopeEndLabel() + ":");
-	} FINISH
+		scopeManager.popScope();
+	}
 	| BREAK SC
 	{
 		bool inWhile = scopeManager.searchIfScopeOpen(ScopeType::WHILE_LOOP);
@@ -233,7 +233,7 @@ Statement :
 			output::errorUnexpectedBreak(yylineno);
 			exit(0);
 		}
-		codeBuffer.emit("br label %" + scopeManager.getLastScopeStartLabel());
+		codeBuffer.emit("br label %" + scopeManager.getLastWhileScopeEndLabel());
 	}
 	| CONTINUE SC
 	{
@@ -243,7 +243,7 @@ Statement :
 			output::errorUnexpectedContinue(yylineno);
 			exit(0);
 		}
-		codeBuffer.emit("br label %" + scopeManager.getLastScopeStartLabel());
+		codeBuffer.emit("br label %" + scopeManager.getLastWhileScopeStartLabel());
 	};
 
 Call: ID LPAREN Exp RPAREN
@@ -539,6 +539,11 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 		string code = var + " = add i1 1,0";
 		codeBuffer.emit(code);
 		$$->setRegName(var);
+		string trueLabel = codeBuffer.freshLabel(), falseLabel = codeBuffer.freshLabel();
+		$$->setTrueLabel(trueLabel);
+		$$->setFalseLabel(falseLabel);
+		codeGenerator.setMostRecentTrueLabel(trueLabel);
+		codeBuffer.emit("br label %" + trueLabel);
 	}
 
 	| FALSE {
@@ -547,6 +552,11 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 		string s = var + " = add i1 0,0";
 		codeBuffer.emit(s);
 		$$->setRegName(var);
+		string trueLabel = codeBuffer.freshLabel(), falseLabel = codeBuffer.freshLabel();
+		$$->setTrueLabel(trueLabel);
+		$$->setFalseLabel(falseLabel);
+		codeGenerator.setMostRecentTrueLabel(trueLabel);
+		codeBuffer.emit("br label %" + falseLabel);
 	}
 
 FINISH:

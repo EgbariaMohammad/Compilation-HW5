@@ -47,6 +47,8 @@ public:
     ScopeType getLatestScopeType() const;
     string getLastScopeStartLabel() const;
     string getLastScopeEndLabel() const;
+    string getLastWhileScopeStartLabel() const;
+    string getLastWhileScopeEndLabel() const;
     void setLastScopeStartLabel(const string& label);
     void setLastScopeEndLabel(const string& label);
 

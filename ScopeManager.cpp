@@ -101,6 +101,20 @@ string ScopeManager::getLastScopeEndLabel() const {
     return scopes.back().first->getEndLabel();
 }
 
+string ScopeManager::getLastWhileScopeStartLabel() const {
+    for (int i = scopes.size() - 1; i >= 0; i--)
+        if (scopes[i].second == ScopeType::WHILE_LOOP)
+            return scopes[i].first->getStartLabel();
+    return "NOT FOUND";
+}
+
+string ScopeManager::getLastWhileScopeEndLabel() const {
+    for (int i = scopes.size() - 1; i >= 0; i--)
+        if (scopes[i].second == ScopeType::WHILE_LOOP)
+            return scopes[i].first->getEndLabel();
+    return "NOT FOUND";
+}
+
 void ScopeManager::setLastScopeStartLabel(const string& label) {
     scopes.back().first->setStartLabel(label);
 }
