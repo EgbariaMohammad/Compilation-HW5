@@ -12,20 +12,9 @@ void output::printID(const string& id, int offset, const string& type) {
     cout << id << " " << type <<  " " << offset <<  endl;
 }
 
-string valueListsToString(const std::vector<string>& values) {
-    stringstream res;
-    res << "{";
-    for(int i = 0; i < values.size(); ++i) {
-        res << values[i];
-        if (i + 1 < values.size())
-            res << ",";
-    }
-    res << "}";
-    return res.str();
-}
+string output::makeFunctionType(const string& argType, const string& retType) {
 
-string output::makeFunctionType(const string& retType, std::vector<string>& argTypes) {
-    return "(" + argTypes[0] + ")" + "->" + retType;
+    return "(" + argType + ")" + "->" + retType;
 }
 
 void output::errorLex(int lineno){
@@ -52,8 +41,8 @@ void output::errorMismatch(int lineno){
     cout << "line " << lineno << ":" << " type mismatch" << endl;
 }
 
-void output::errorPrototypeMismatch(int lineno, const string& id, std::vector<string>& argTypes) {
-    cout << "line " << lineno << ": prototype mismatch, function " << id << " expects arguments " << argTypes[0] << endl;
+void output::errorPrototypeMismatch(int lineno, const string& id, const string &type) {
+    cout << "line " << lineno << ": prototype mismatch, function " << id << " expects arguments " << type << endl;
 }
 
 void output::errorUnexpectedBreak(int lineno) {
@@ -64,18 +53,6 @@ void output::errorUnexpectedContinue(int lineno) {
     cout << "line " << lineno << ":" << " unexpected continue statement" << endl;
 }
 
-void output::errorMainMissing() {
-    cout << "Program has no 'void main()' function" << endl;
-}
-
 void output::errorByteTooLarge(int lineno, const string& value) {
     cout << "line " << lineno << ": byte value " << value << " out of range" << endl;
-}
-
-void output::errorConstDef(int lineno){
-    cout << "line " << lineno << ":" << " bad const def" << endl;
-}
-
-void output::errorConstMismatch(int lineno){
-    cout << "line " << lineno << ":" << " bad const use" << endl;
 }

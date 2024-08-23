@@ -263,8 +263,7 @@ Call: ID LPAREN Exp RPAREN
 		}
 		else if(symbol->getName() == "print" && $3->getType() != "STRING")
 		{
-			vector<string> temp = {"STRING"};
-			output::errorPrototypeMismatch(yylineno, $1->getName(), temp);
+			output::errorPrototypeMismatch(yylineno, $1->getName(), "STRING");
 			exit(0);
 		}
 		shared_ptr<Function> function = std::dynamic_pointer_cast<Function>(symbol);
@@ -273,7 +272,7 @@ Call: ID LPAREN Exp RPAREN
 		bool validCall = std::find(params.begin(), params.end(), type) != params.end();
 		if(validCall == false)
 		{
-			output::errorPrototypeMismatch(yylineno, $1->getName(), params);
+			output::errorPrototypeMismatch(yylineno, $1->getName(), params[0]);
 			exit(0);
 		}
 		string returnValueType = function->getReturnType();
