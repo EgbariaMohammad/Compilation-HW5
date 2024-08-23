@@ -1,0 +1,6 @@
+the values at t7 and t9 are never updated, and so on the loop goes on for ever and we never get to jump to label 9.
+this is porbably caused by the fact that we change the registers of each variable. that shouldn't happen!
+or polly because the values in the stack is not updated
+
+- Update:
+seems like the problem is in the second loop.
