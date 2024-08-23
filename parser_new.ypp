@@ -663,10 +663,9 @@ MARKER:
 int main()
 {
 	/* -- initialize the system -- */
-	int offset = scopeManager.getOffset();
-	scopeManager.insertSymbol(shared_ptr<Function>(new Function("print", offset, "VOID", {"STRING"})));
-	scopeManager.insertSymbol(shared_ptr<Function>(new Function("printi", offset, "VOID", {"INT"})));
-	scopeManager.insertSymbol(shared_ptr<Function>(new Function("readi", offset, "INT", {"INT"})));
+	scopeManager.insertSymbol(shared_ptr<Function>(new Function("print", scopeManager.getOffset(), "VOID", {"STRING"})));
+	scopeManager.insertSymbol(shared_ptr<Function>(new Function("printi", scopeManager.getOffset(), "VOID", {"INT"})));
+	scopeManager.insertSymbol(shared_ptr<Function>(new Function("readi", scopeManager.getOffset(), "INT", {"INT"})));
 
 	codeBuffer.emitGlobal("declare i32 @printf(i8*, ...)");
 	codeBuffer.emitGlobal("declare i32 @scanf(i8*, ...)");

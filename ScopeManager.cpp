@@ -21,7 +21,7 @@ ScopeManager::ScopeManager() : offsets(stack<int>()), scopes(vector<pair<unique_
 
 void ScopeManager::pushScope(ScopeType type)
 {
-    offsets.push(0);
+    offsets.push(offsets.top()+1);
     scopes.push_back({std::unique_ptr<SymTable>(new SymTable), type}); // replace with make unique
 }
 
@@ -36,7 +36,7 @@ void ScopeManager::popScope()
 void ScopeManager::insertSymbol(const shared_ptr<Symbol>& e)
 {
     scopes.back().first->AddSymbol(e);
-    offsets.top()++;
+    offsets.push(offsets.top()+1);
 }
 
 bool ScopeManager::findSymbol(const string& name) const
