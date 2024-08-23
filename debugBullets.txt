@@ -9,3 +9,12 @@ seems like the problem is in the second loop.
     note that if we remove the first blok and keep the while in the global block, the code works, print only one but it works,
     seems like the problem is in the while derivatin rule.
     first problem is that we break out of both loops! when we need to break only the one we're in.!
+
+- Update:
+    note that index varibale is being saved in the stack where MaxFibNumberToPrint is saved!!!
+    %t17 = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 3
+    store i32 0, i32* %t17
+    but in this address we previously saved MaxFibNumberToPrint!
+    %t2= add i32 20,0
+    %t3 = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 3
+    store i32 %t2, i32* %t3
