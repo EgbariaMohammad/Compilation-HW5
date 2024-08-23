@@ -47,8 +47,9 @@ continue return CONTINUE;
 \- return SUB;
 \+ return ADD;
 \/ return DIV;
-{Comment};
+{Comment} ;
 {whiteSpace} ;
+
 
 {Equality} {
     yylval = new Symbol(yytext, yytext);
