@@ -1,3 +1,9 @@
+//
+// Created by Baraa Egbaria on 10/08/2024.
+// Copyright © 2024 Baraa Egbaria All rights reserved.
+//
+// SymTable.cpp
+
 #include "SymTable.hpp"
 #include "hw3_output.hpp"
 #include <vector>

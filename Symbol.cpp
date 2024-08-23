@@ -1,3 +1,9 @@
+//
+// Created by Baraa Egbaria on 10/08/2024.
+// Copyright © 2024 Baraa Egbaria All rights reserved.
+//
+// Symbol.cpp
+
 #include "Symbol.hpp"
 #include <vector>
 #include <string>

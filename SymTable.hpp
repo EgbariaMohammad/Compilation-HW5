@@ -2,7 +2,7 @@
 // Created by Baraa Egbaria on 10/08/2024.
 // Copyright © 2024 Baraa Egbaria All rights reserved.
 //
-// SymTable.hpp  - SymbolTable
+// SymTable.cpp
 
 #pragma once
 
