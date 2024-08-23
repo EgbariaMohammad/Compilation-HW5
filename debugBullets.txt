@@ -4,3 +4,8 @@ or polly because the values in the stack is not updated
 
 - Update:
 seems like the problem is in the second loop.
+
+- Update:
+    note that if we remove the first blok and keep the while in the global block, the code works, print only one but it works,
+    seems like the problem is in the while derivatin rule.
+    first problem is that we break out of both loops! when we need to break only the one we're in.!
