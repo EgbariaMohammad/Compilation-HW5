@@ -1,0 +1,23 @@
+
+print("Fibonachy numbers:");
+byte MaxFibNumberToPrint = (byte)20;
+byte whichFibNumber = (byte)1;
+while (whichFibNumber < MaxFibNumberToPrint){
+    byte index = (byte)1;
+    int prevNum = 0;
+    int currNum = 1;
+    int temp;
+    while (true){
+        if (index == whichFibNumber){ // the problem is here;
+            printi(currNum);
+            break;
+        }
+        temp = currNum + prevNum;
+        prevNum = currNum;
+        currNum = temp;
+        index = index + (byte)1;
+        continue;
+        print("Shouldn't be printed");
+    }
+    whichFibNumber = whichFibNumber + (byte)1;
+}

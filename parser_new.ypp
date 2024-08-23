@@ -167,12 +167,12 @@ Statement :
 			string newValue1 = codeGenerator.freshRegister();
 			string newValue2 = codeGenerator.freshRegister();
 			string newVariable2 = codeGenerator.freshRegister();
-			codeBuffer.emit($4->getTrueLabel() + ":");
+			codeBuffer.emit($3->getTrueLabel() + ":");
 			codeBuffer.emit(newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
 			codeBuffer.emit(newValue1 + " = zext i1 1 to i32");
 			codeBuffer.emit("store i32 " + newValue1 + ", i32* " + newVariable1);
 			codeBuffer.emit("br label %" + NextLabel);
-			codeBuffer.emit($4->getFalseLabel() + ":");
+			codeBuffer.emit($3->getFalseLabel() + ":");
 			codeBuffer.emit(newVariable2 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
 			codeBuffer.emit(newValue2 + " = zext i1 0 to i32");
 			codeBuffer.emit("store i32 " + newValue2 + ", i32* " + newVariable2);
