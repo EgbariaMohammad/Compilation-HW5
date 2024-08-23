@@ -1,22 +1,20 @@
 %{
-	#include "hw3_output.hpp"
-	#include "Structures.hpp"
+    // *** includes *** //
+    #include "cg.hpp"
 	#include "Symbol.hpp"
 	#include "ScopeManager.hpp"
-	#include "cg.hpp"
+    #include "hw3_output.hpp"
+	#include <algorithm>
+
+    // *** Declarations *** //
 	ScopeManager& scopeManager = ScopeManager::getInstance();
 	CodeGenerator& codeGenerator = CodeGenerator::getInstance();
 	CodeBuffer& codeBuffer = CodeBuffer::instance();
-	int curr_index=0;
-	// vector<bool> hasBreak;
-	// vector<string> next_label;
-	// string next_label2;
-	int string_counter=0;
+	vector<string> ifElseLabels;
+
+    // *** Flex externals *** //
 	extern int yylex();
 	extern int yylineno;
-	// vector<string> labels;
-	// vector<vector<pair<int, BranchLabelIndex>>> br_trueLabel_Lists;
-	// vector<vector<pair<int, BranchLabelIndex>>> global_break;
 	void yyerror(const char *message);
 %}
 
@@ -29,9 +27,8 @@
 %token		TRUE
 %token		FALSE
 %token		RETURN
-%nonassoc 	temp
-%nonassoc 	ELSE
-%nonassoc	IF
+%token 		ELSE
+%token 		IF
 %token		WHILE
 %token		BREAK
 %token		CONTINUE
@@ -55,46 +52,41 @@
 %right		NOT
 %left		LPAREN RPAREN
 %nonassoc 	tempp
-
+%right		ELSE
 
 %%
 Program : Statements;
-
 Statements : Statement | Statements Statement;
-
-Statement : LBRACE
-	{
-		scopeManager.pushScope(ScopeType::BLOCK);
-	}
-	Statements RBRACE FINISH
-
-	| Type ID SC
-	{
-		if(scopeManager.findSymbolInCurrentScope($2->getName()) == -1) // find if ID was decalred in the current scope
+Statement :
+    LBRACE PUSH_SCOPE Statements RBRACE FINISH
+    | Type ID SC
+    {
+        // check if ID was declared in this scope previously
+        if(scopeManager.findSymbolInCurrentScope($2->getName()) == true)
 		{
 			output::errorDef(yylineno, $2->getName());
             exit(0);
 		}
-		int variableOffset = scopeManager.getOffset();
-		shared_ptr<Symbol> newSymbol = make_shared<Symbol>($2->getName(), $1->getType(), "NO VARIABLE", variableOffset);
+        int variableOffset = scopeManager.getOffset();
+		shared_ptr<Symbol> newSymbol = make_shared<Symbol>($1->getType(), $2->getName(), "NO VARIABLE", variableOffset);
 		scopeManager.insertSymbol(newSymbol);
 
-		string varOffset = codeGenerator.intToString(variableOffset);
-		string varReg = codeGenerator.freshRegister();
-		string allocCode = varReg + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
-		string storeValCode = "store i32 0, i32* " + varReg;
+        string varOffset = codeGenerator.intToString(variableOffset);
+		string varAddress = codeGenerator.freshRegister();
+		string allocCode = varAddress + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
+		string storeValCode = "store i32 0, i32* " + varAddress;
 		codeBuffer.emit(allocCode);
 		codeBuffer.emit(storeValCode);
-	}
-
-	| Type ID ASSIGN Exp SC
-	{
-		bool expInt = $4->getType() == "INT";
+    }
+    | Type ID ASSIGN Exp SC
+    {
+        bool expInt = $4->getType() == "INT";
 		bool expByte = $4->getType() == "BYTE";
 		bool idInt = $1->getType() == "INT";
 
-		if($1->getType() == "BYTE" and $4->getValue() > 255)
-		{ // check if the variable was declared as Byte but the value is bigger than what byte holds
+        // check if the assign is valid!
+        if($1->getType() == "BYTE" and $4->getValue() > 255)
+		{
 			output::errorByteTooLarge(yylineno,to_string($5->getValue()));
 			exit(0);
 		}
@@ -103,209 +95,206 @@ Statement : LBRACE
 			output::errorMismatch(yylineno);
 			exit(0);
 		}
-		else if(scopeManager.findSymbolInCurrentScope($2->getName()) != -1)
+		else if(scopeManager.findSymbolInCurrentScope($2->getName()) == true)
 		{
-			output::errorDef(yylineno, $2->getType());
+			output::errorDef(yylineno, $2->getName());
             exit(0);
 		}
 
-		// if we get here all is ok!, add the variable to the symbol table
-		int variableOffset = scopeManager.getOffset();
-		shared_ptr<Symbol> newSymbol = make_shared<Symbol>($1->getType(), $2->getName(), "NO VARIABLE",variableOffset);
+        //here we know that assign is legal and symbol doesn't exists
+        int variableOffset = scopeManager.getOffset();
+		shared_ptr<Symbol> newSymbol = make_shared<Symbol>($1->getType(), $2->getName(), "NO VARIABLE", variableOffset);
 		scopeManager.insertSymbol(newSymbol);
-		string varOffset = codeGenerator.intToString(variableOffset);
-		if($4->getType() == "BOOL")
+        string varOffset = codeGenerator.intToString(variableOffset);
+        string newVariable1 = codeGenerator.freshRegister();
+        if($4->getType() == "BOOL")
 		{
-			string NextLabel = codeGenerator.freshLabel();
-			string newValue1 = getNewRegister();
-			string newVariable1 = getNewRegister();
-			string newValue2 = getNewRegister();
-			string newVariable2 = getNewRegister();
-			codeBuffer.emit($4.true_label + ":");
+			string NextLabel = codeBuffer.freshLabel();
+			string newValue1 = codeGenerator.freshRegister();
+			string newValue2 = codeGenerator.freshRegister();
+			string newVariable2 = codeGenerator.freshRegister();
+			codeBuffer.emit($4->getTrueLabel() + ":");
 			codeBuffer.emit(newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
 			codeBuffer.emit(newValue1 + " = zext i1 1 to i32");
 			codeBuffer.emit("store i32 " + newValue1 + ", i32* " + newVariable1);
 			codeBuffer.emit("br label %" + NextLabel);
-			codeBuffer.emit($4.false_label + ":");
+			codeBuffer.emit($4->getFalseLabel() + ":");
 			codeBuffer.emit(newVariable2 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
 			codeBuffer.emit(newValue2 + " = zext i1 0 to i32");
 			codeBuffer.emit("store i32 " + newValue2 + ", i32* " + newVariable2);
 			codeBuffer.emit("br label %" + NextLabel);
 			codeBuffer.emit(NextLabel + ":");
 		}
-		else if($4->getType() == "BYTE")
-		{
-			string newVariable = codeGenerator.freshRegister();
-			codeBuffer.emit(newVariable + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
-			string newVariable2 = codeGenerator.freshRegister();
-			codeBuffer.emit(newVariable2 + " = zext i8 " + $4->getVariable() + " to i32");
-			codeBuffer.emit("store i32 " + newVariable2 + ", i32* " + newVariable);
-		}
-		else
-		{
-			string newVariable = codeGenerator.freshRegister();
-			string code1 = newVariable + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
-			string code2 = "store i32 " + $4->getVariable() + ", i32* " + newVariable;
+		else {
+			string code1 = newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
+			string code2 = "store i32 " + $4->getRegName() + ", i32* " + newVariable1;
 			codeBuffer.emit(code1);
 			codeBuffer.emit(code2);
 		}
-	}
-
+    }
 	| ID ASSIGN Exp SC
 	{
-		bool foundSymbol = scopeManager.findSymbol($1->getName()); //TODO: get the Symbol itself!
-		if(!foundSymbol) { // what if symbol is Func ?
+		bool exists = scopeManager.findSymbol($1->getName()) == true;
+		if(!exists)
+		{
 			output::errorUndef(yylineno, $1->getName());
 			exit(0);
 		}
-		// now check if we are assining the right type to the variable!
-		shared_ptr<Symbol>& variable = scopeManager.getSymbol($1->getName());
-		if(variable->getType() == "FUNCTION")
+		shared_ptr<Symbol> symbol = scopeManager.getSymbol($1->getName());
+		bool expInt = $3->getType() == "INT";
+		bool expByte = $3->getType() == "BYTE";
+		bool idInt = symbol->getType() == "INT";
+
+        // check if the assign is valid!
+        if(symbol->getType() == "BYTE" and $3->getValue() > 255)
 		{
-			output::errorUndef(yylineno, variable->getName());
+			string value = codeGenerator.intToString($3->getValue());
+			output::errorByteTooLarge(yylineno, value);
 			exit(0);
 		}
-		string variableType = variable->getType(); // type of variable;
-		bool expInt = $3->getType() == "INT";
-		bool expByte = $3->getType() == "BYTE" ;
-		bool expBool = $3->getType() == "BOOL";
-		bool idInt = $1->getType() == "INT";
-
-		if($3->getType() != variableType and !(idInt and expByte)){
+		else if(symbol->getType() != $3->getType() and !(expByte && idInt))
+		{
 			output::errorMismatch(yylineno);
 			exit(0);
 		}
-		string varOffset = codeGenerator.intToString(variable->getOffset());
-		if($3->getType() == "BOOL")
+
+        int variableOffset = symbol->getOffset();
+        string varOffset = codeGenerator.intToString(variableOffset);
+		string newVariable1 = codeGenerator.freshRegister();
+        if($3->getType() == "BOOL")
 		{
-			string NextLabel = codeGenerator.freshLabel();
-			string newValue1 = getNewRegister();
-			string newVariable1 = getNewRegister();
-			string newValue2 = getNewRegister();
-			string newVariable2 = getNewRegister();
-			codeBuffer.emit($3.true_label + ":");
+			string NextLabel = codeBuffer.freshLabel();
+			string newValue1 = codeGenerator.freshRegister();
+			string newValue2 = codeGenerator.freshRegister();
+			string newVariable2 = codeGenerator.freshRegister();
+			codeBuffer.emit($3->getTrueLabel() + ":");
 			codeBuffer.emit(newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
 			codeBuffer.emit(newValue1 + " = zext i1 1 to i32");
 			codeBuffer.emit("store i32 " + newValue1 + ", i32* " + newVariable1);
 			codeBuffer.emit("br label %" + NextLabel);
-			codeBuffer.emit($3.false_label + ":");
+			codeBuffer.emit($3->getFalseLabel() + ":");
 			codeBuffer.emit(newVariable2 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
 			codeBuffer.emit(newValue2 + " = zext i1 0 to i32");
 			codeBuffer.emit("store i32 " + newValue2 + ", i32* " + newVariable2);
 			codeBuffer.emit("br label %" + NextLabel);
 			codeBuffer.emit(NextLabel + ":");
 		}
-		else if($3->getType() == "BYTE")
+		else if($2->getType() == "BYTE")
 		{
-			string newVariable = codeGenerator.freshRegister();
-			codeBuffer.emit(newVariable + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
+			codeBuffer.emit(newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
 			string newVariable2 = codeGenerator.freshRegister();
-			codeBuffer.emit(newVariable2 + " = zext i8 " + $3->getVariable() + " to i32");
-			codeBuffer.emit("store i32 " + newVariable2 + ", i32* " + newVariable);
+			codeBuffer.emit(newVariable2 + " = zext i8 " + $4->getRegName() + " to i32");
+			codeBuffer.emit("store i32 " + newVariable2 + ", i32* " + newVariable1);
 		}
 		else
 		{
-			string newVariable = codeGenerator.freshRegister();
-			string code1 = newVariable + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
-			string code2 = "store i32 " + $3->getVariable() + ", i32* " + newVariable;
+			string code1 = newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
+			string code2 = "store i32 " + $3->getRegName() + ", i32* " + newVariable1;
 			codeBuffer.emit(code1);
 			codeBuffer.emit(code2);
 		}
-
 	}
-
 	| Call SC {}
-	| RETURN SC { codeBuffer.emit("ret i32 0"); };
-
-	FINISH:
+	| RETURN SC { codeBuffer.emit("ret i32 0"); }
+	| IF LPAREN Exp A RPAREN PUSH_SCOPE Statement
 	{
+		codeBuffer.emit("br label %" + $3->getFalseLabel());
+		codeBuffer.emit($3->getFalseLabel() + ":");
 		scopeManager.popScope();
-	};
-
-A:
-{
-	string branch_cmd_exp1 = "br i1 " + $0->getVariable() + ", label @, label @";
-	int br_exp1_address = codeBuffer.emit(branch_cmd_exp1);
-	auto exp_1_newTrueList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
-	auto exp_1_newFalseList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, SECOND));
-	string true_label = codeBuffer.genLabel();
-	int br_trueLabel_address = codeBuffer.emit("br label @");
-	auto br_tr = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_trueLabel_address, FIRST));
-	br_trueLabel_Lists.push_back(br_tr);
-	string next_label_val = codeBuffer.genLabel();
-	next_label.push_back(next_label_val);
-	codeBuffer.bpatch(exp_1_newTrueList, next_label[next_label.size() - 1]);
-	codeBuffer.bpatch(exp_1_newFalseList, true_label);
-};
-
-T:
-{
-	string branch_str = "br label @";
-	int br_exp1_address = codeBuffer.emit(branch_str);
-	auto exp_1_newTrueList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
-	next_label2 = codeBuffer.genLabel();
-	auto br_list = br_trueLabel_Lists[br_trueLabel_Lists.size() - 1];
-	codeBuffer.bpatch(br_list, next_label2);
-	// codeBuffer.bpatch(exp_1_newTrueList, next_label2);
-	br_trueLabel_Lists.pop_back();
-	br_trueLabel_Lists.push_back(exp_1_newTrueList);
-	labels.push_back(next_label2);
-};
-
-Y:
+	}
+	| IF LPAREN Exp A RPAREN PUSH_SCOPE Statement ELSE {
+		scopeManager.popScope();
+		scopeManager.pushScope(ScopeType::ELSE_STATEMENT);
+		ifElseLabels.push_back(codeBuffer.freshLabel());
+		codeBuffer.emit("br label %" + ifElseLabels.back());
+		codeBuffer.emit($3->getFalseLabel() + ":");
+	} Statement {
+		codeBuffer.emit("br label %" + ifElseLabels.back());
+		codeBuffer.emit(ifElseLabels.back() + ":");
+		ifElseLabels.pop_back();
+		scopeManager.popScope();
+	}
+	| WHILE PUSH_WHILE_SCOPE MARKER LPAREN Exp RPAREN
 	{
-		auto adress_val = codeBuffer.emit("br label @");
-		auto br_list = br_trueLabel_Lists[br_trueLabel_Lists.size() - 1];
-		next_label2 = codeBuffer.genLabel();
-		auto exp_1_newTrueList1 = codeBuffer.makelist(pair<int, BranchLabelIndex>(adress_val, FIRST));
-		codeBuffer.bpatch(exp_1_newTrueList1, next_label2);
-		labels.pop_back();
-		codeBuffer.bpatch(br_list, next_label2);
-		br_trueLabel_Lists.pop_back();
-	};
-
-M:
+		CodeBuffer::instance().emit($5->getTrueLabel() + ":");
+	}
+	Statement
 	{
-		if ($-2->getType().compare("BOOL"))
+		codeBuffer.emit("br label %" + scopeManager.getLastScopeStartLabel());
+		codeBuffer.emit($5->getFalseLabel() + ":");
+		codeBuffer.emit("br label %" + scopeManager.getLastScopeEndLabel());
+		codeBuffer.emit(scopeManager.getLastScopeEndLabel() + ":");
+		scopeManager.popScope();
+	}
+	| BREAK SC
+	{
+		bool inWhile = scopeManager.searchIfScopeOpen(ScopeType::WHILE_LOOP);
+		if (!inWhile)
 		{
-			output::errorMismatch(yylineno);
+			output::errorUnexpectedBreak(yylineno);
 			exit(0);
 		}
-		Scope new_scope(offsets.back(), "IF");
-		scopes.push_back(new_scope);
-		offsets.push_back(offsets.back());
-	};
-
-K:
+		codeBuffer.emit("br label %" + scopeManager.getLastWhileScopeEndLabel());
+	}
+	| CONTINUE SC
 	{
-		Scope new_scope(offsets.back(), "ELSE");
-		scopes.push_back(new_scope);
-		offsets.push_back(offsets.back());
-	};
-
-N:
-	{
-		int br_trueLabel_address1 = codeBuffer.emit("br label @");
-		auto exp_1_newTrueList1 = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_trueLabel_address1, FIRST));
-		string next_label_val = codeBuffer.genLabel();
-		next_label.push_back(next_label_val);
-		codeBuffer.bpatch(exp_1_newTrueList1, next_label[next_label.size() - 1]);
+		bool inWhile = scopeManager.searchIfScopeOpen(ScopeType::WHILE_LOOP);
+		if (!inWhile)
+		{
+			output::errorUnexpectedContinue(yylineno);
+			exit(0);
+		}
+		codeBuffer.emit("br label %" + scopeManager.getLastWhileScopeStartLabel());
 	};
 
 Call: ID LPAREN Exp RPAREN
 	{
-
+		bool functionExists = scopeManager.findSymbol($1->getName());
+		if(!functionExists)
+		{
+			output::errorUndefFunc(yylineno, $1->getName());
+			exit(0);
+		}
+		shared_ptr<Symbol> symbol = scopeManager.getSymbol($1->getName());
+		if(symbol->getType() != "FUNCTION")
+		{
+			output::errorUndefFunc(yylineno, $1->getName());
+			exit(0);
+		}
+		else if(symbol->getName() == "print" && $3->getType() != "STRING")
+		{
+			output::errorPrototypeMismatch(yylineno, $1->getName(), "STRING");
+			exit(0);
+		}
+		shared_ptr<Function> function = std::dynamic_pointer_cast<Function>(symbol);
+		vector<string> params = function->getParametersTypes();
+		string type = $3->getType() == "BYTE" or $3->getType() == "INT" ? "INT" : $3->getType();
+		bool validCall = std::find(params.begin(), params.end(), type) != params.end();
+		if(validCall == false)
+		{
+			output::errorPrototypeMismatch(yylineno, $1->getName(), params[0]);
+			exit(0);
+		}
+		string returnValueType = function->getReturnType();
+		string callCode, returnRegister;
+		if( returnValueType != "VOID")
+		{
+			returnRegister = codeGenerator.freshRegister();
+			callCode = returnRegister + " = ";
+			$$->setRegName(returnRegister);
+		}
+		string returnValSize = returnValueType == "INT" or returnValueType == "BYTE" ? "i32 " : (returnValueType == "BOOL" ? "i1 " : "void " );
+		callCode += "call " + returnValSize; // this is ok for now since we allows only one paramater;
+		callCode += "@"+$1->getName() + "(" + ($1->getName() == "print" ? "i8* " : "i32 ") + $3->getRegName() + ")";
+		codeBuffer.emit(callCode);
+		$$->setType(returnValueType);
 	};
 
 Type: INT  { $$ = new Symbol("INT", "INT");   }
 	| BYTE { $$ = new Symbol("BYTE", "BYTE"); }
 	| BOOL { $$ = new Symbol("BOOL", "BOOL"); };
 
-Exp: LPAREN Exp RPAREN
-	{
-		$$ = $2;
-	}
-
+Exp: LPAREN Exp RPAREN { $$ = $2; }
 	| Exp MUL Exp
 	{
 		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
@@ -315,15 +304,12 @@ Exp: LPAREN Exp RPAREN
 			output::errorMismatch(yylineno);
 			exit(0);
 		}
-		string resultType;
-		if ($1->getType() == "INT" || $3->getType() == "INT")
-			resultType = "INT";
-		else
-			resultType = "BYTE";
+		bool intMultiplication = $1->getType() == "INT" or $3->getType() == "INT";
+		string resultType = intMultiplication ? "INT" : "BYTE";
 		$$ = new Symbol(resultType, resultType);
 
 		string resultRegister = codeGenerator.freshRegister();
-		string storeCode = resultRegister + " = mul i32 " + $1->getVariable() + "," + $3->getVariable();
+		string storeCode = resultRegister + " = mul i32 " + $1->getRegName() + "," + $3->getRegName();
 		codeBuffer.emit(storeCode);
 		if (resultType == "BYTE")
 		{
@@ -333,12 +319,13 @@ Exp: LPAREN Exp RPAREN
 			string zextValue = codeGenerator.freshRegister();
 			string zextValueCode = zextValue + " = zext i8 " + truncValue + " to i32";
 			codeBuffer.emit(zextValueCode);
-			$$->setVariable(zextValue);
+			$$->setRegName(zextValue);
 		}
-		else
-			$$->setVariable(resultRegister);
+		else{
+			$$->setRegName(resultRegister);
+		}
+		$$->setType(resultType);
 	}
-
 	| Exp DIV Exp
 	{
 		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
@@ -348,31 +335,20 @@ Exp: LPAREN Exp RPAREN
 			output::errorMismatch(yylineno);
 			exit(0);
 		}
-		bool operandsAreInts = $1->getType() == "INT" or $3->getType() == "INT";
-		string resultType =  operandsAreInts ? "INT" : "BYTE";
+		bool intDivision = $1->getType() == "INT" or $3->getType() == "INT";
+		string resultType = intDivision ? "INT" : "BYTE";
 		$$ = new Symbol(resultType, resultType);
 
+		// TODO: checl division by zero;
+
+		// continunte here if not error
 		string resultRegister = codeGenerator.freshRegister();
-		string divisionLabel = CodeBuffer::instance().freshLabel();
-		string comapreCode = resultRegister + " = icmp eq i8 0, " + $3->getVariable();
-		string branchCode = "br i1 " + resultRegister + ", label %ERROR_LABEL, label %" + divisionLabel;
-		CodeBuffer::instance().emit(comapreCode);
-		CodeBuffer::instance().emit(branchCode);
-		CodeBuffer::instance().emit(divisionLabel + ":");
-		resultRegister = codeGenerator.freshRegister();
-		CodeBuffer::instance().emit(resultRegister + " = udiv i8 " + $1->getVariable() + ", " + $3->getVariable());
-
-		//continunte here if not error
-		string resultValue = codeGenerator.freshRegister();
-		string resultValueCode;
-		if (resultType == "BYTE")
-			resultValueCode = resultValue + " = udiv i32 " + $1->getVariable() + "," + $3->getVariable();
-		else
-			resultValueCode = resultValue + " = sdiv i32 " + $1->getVariable() + "," + $3->getVariable();
-		codeBuffer.emit(resultValueCode);
-		$$->setVariable(resultValue);
+		string divisionType = (resultType == "BYTE") ? " = udiv i32 " : " = sdiv i32 ";
+		string divisionCommand = resultRegister + divisionType + $1->getRegName() + "," + $3->getRegName();
+		codeBuffer.emit(divisionCommand);
+		$$->setRegName(resultRegister);
+		$$->setType(resultType);
 	}
-
 	| Exp ADD Exp
 	{
 		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
@@ -382,13 +358,13 @@ Exp: LPAREN Exp RPAREN
 			output::errorMismatch(yylineno);
 			exit(0);
 		}
-		bool operandsAreInts = $1->getType() == "INT" or $3->getType() == "INT";
-		string resultType =  operandsAreInts ? "INT" : "BYTE";
+		bool intAdditive = $1->getType() == "INT" or $3->getType() == "INT";
+		string resultType = intAdditive ? "INT" : "BYTE";
 		$$ = new Symbol(resultType, resultType);
 
 		string resultRegister = codeGenerator.freshRegister();
-		string addCommandCode = resultRegister + " = add i32 " + $1->getVariable() + "," + $3->getVariable();
-		codeBuffer.emit(addCommandCode);
+		string addCommand = resultRegister + " = add i32 " + $1->getRegName() + "," + $3->getRegName();
+		codeBuffer.emit(addCommand);
 		if (resultType == "BYTE")
 		{
 			string truncValue = codeGenerator.freshRegister();
@@ -397,12 +373,13 @@ Exp: LPAREN Exp RPAREN
 			string zextValue = codeGenerator.freshRegister();
 			string zextCommandCode = zextValue + " = zext i8 " + truncValue + " to i32";
 			codeBuffer.emit(zextCommandCode);
-			$$->setVariable(zextValue);
+			$$->setRegName(zextValue);
 		}
-		else
-			$$->setVariable(resultRegister);
+		else{
+			$$->setRegName(resultRegister);
+		}
+		$$->setType(resultType);
 	}
-
 	| Exp SUB Exp
 	{
 		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
@@ -412,13 +389,13 @@ Exp: LPAREN Exp RPAREN
 			output::errorMismatch(yylineno);
 			exit(0);
 		}
-		bool operandsAreInts = $1->getType() == "INT" or $3->getType() == "INT";
-		string resultType =  operandsAreInts ? "INT" : "BYTE";
+		bool intSubtraction = $1->getType() == "INT" or $3->getType() == "INT";
+		string resultType = intSubtraction ? "INT" : "BYTE";
 		$$ = new Symbol(resultType, resultType);
 
 		string resultRegister = codeGenerator.freshRegister();
-		string addCommandCode = resultRegister + " = sub i32 " + $1->getVariable() + "," + $3->getVariable();
-		codeBuffer.emit(addCommandCode);
+		string addCommand = resultRegister + " = sub i32 " + $1->getRegName() + "," + $3->getRegName();
+		codeBuffer.emit(addCommand);
 		if (resultType == "BYTE")
 		{
 			string truncValue = codeGenerator.freshRegister();
@@ -427,80 +404,90 @@ Exp: LPAREN Exp RPAREN
 			string zextValue = codeGenerator.freshRegister();
 			string zextCommandCode = zextValue + " = zext i8 " + truncValue + " to i32";
 			codeBuffer.emit(zextCommandCode);
-			$$->setVariable(zextValue);
+			$$->setRegName(zextValue);
 		}
-		else
-			$$->setVariable(resultRegister);
+		else{
+			$$->setRegName(resultRegister);
+		}
+		$$->setType(resultType);
 	}
-
 	| ID
 	{
-		bool exists = scopeManager.findSymbol($1->getName());
+		bool exists = scopeManager.findSymbol($1->getName()) == true;
 		if(!exists)
 		{
 			output::errorUndef(yylineno, $1->getName());
 			exit(0);
 		}
-		shared_ptr<Symbol> res = scopeManager.getSymbol($1->getName()); // TODO: check if function!
-		string typeOfId = res->getType();
-		string varOffset = to_string(res->getOffset());
-		$$ = new Symbol(typeOfId, $1->getType());
-		$$->setName($1->getType());
-
-		string newVariable = codeGenerator.freshRegister();
-		string loadValueCode = newVariable + " = load i32, i32* " + varOffset;
-		codeBuffer.emit(loadValueCode);
-		if (typeOfId == "BOOL")
+		shared_ptr<Symbol> symbol = scopeManager.getSymbol($1->getName());
+        string typeOfId = symbol->getType(); // TODO: check if function!
+        if(typeOfId == "FUNCTION") {
+            output::errorUndef(yylineno, $1->getName());
+			exit(0);
+        }
+		string varOffset = codeGenerator.intToString(symbol->getOffset());
+        string addressVariable = codeGenerator.freshRegister();
+        string valueVariable = codeGenerator.freshRegister();
+        codeBuffer.emit(addressVariable + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
+        codeBuffer.emit(valueVariable + " = load i32, i32* " + addressVariable);
+        string trueLabel = codeBuffer.freshLabel();
+        string falseLabel = codeBuffer.freshLabel();
+        string finalValueRegister;
+        if (typeOfId == "BOOL")
 		{
-			string truncValue = codeGenerator.freshRegister();
-			string truncCommandCode = truncValue + " = trunc i32 " + newVariable + " to i1";
+			string truncValueReg = codeGenerator.freshRegister();
+			string truncCommandCode = truncValueReg + " = trunc i32 " + valueVariable + " to i1";
 			codeBuffer.emit(truncCommandCode);
-			$$->setVariable(truncValue);
+            codeBuffer.emit("br i1 " + truncValueReg + ", label %" + trueLabel + ", label %" + falseLabel);
+			finalValueRegister = truncValueReg ;
+			codeGenerator.setMostRecentTrueLabel(trueLabel);
 		}
-		else
-			$$->setVariable(newVariable);
+        else {
+            finalValueRegister = valueVariable ;
+        }
+        $$ = new Symbol(typeOfId, $1->getName(), finalValueRegister, -1, trueLabel, falseLabel);
 	}
 
-	| Call {
-		$$ = $1;
-	}
+	| Call { $$ = $1; }
 
 	| NUM {
-		$$ = new Symbol("INT",std::to_string($1->getValue()));
 		string variable = codeGenerator.freshRegister();
-		string code = variable + "= add i32 " + std::to_string($1->getValue()) + ",0";
+		string code = variable + "= add i32 " + to_string($1->getValue()) + ",0";
 		codeBuffer.emit(code);
-		$$->setVariable(variable);
+		$$->setRegName(variable);
 	}
 
 	| NUM B
 	{
 		int value = $1->getValue();
+		string stringValue = std::to_string(value);
 		if (value > 255)
 		{
-			output::errorByteTooLarge(yylineno, std::to_string(value));
+			output::errorByteTooLarge(yylineno, stringValue);
 			exit(0);
 		}
-		string stringValue = std::to_string(value);
-		$$ = new Symbol("BYTE", std::to_string($1->getValue()));
+		$$ = new Symbol("BYTE", "BYTE");
 		string variable = codeGenerator.freshRegister();
-		string code = variable + "= add i32 " + std::to_string($1->getValue()) + ",0";
+		string code = variable + "= add i32 " + stringValue + ",0";
 		codeBuffer.emit(code);
-		$$->setVariable(variable);
+		$$->setRegName(variable);
 	}
 
 	| STRING {
-		string text = "Baraa"; // $1->getValue();
+		string text = $1->getStringValue();
 		text = text.substr(1, text.size() - 2); // removing the " from start and end
 		string typeOfString = "[" + std::to_string(text.size() + 1) + " x i8]";
-		string nameOfString = "@.STRING_" + std::to_string(string_counter) + "_str";
+		string nameOfString = "@.STRING_" + std::to_string(codeGenerator.getStringCounter()) + "_str";
 		codeBuffer.emitGlobal(nameOfString + " = internal constant" + typeOfString + " c\"" + text + "\\00\"");
-		string_counter++;
+		codeGenerator.increaseStringCounter();
 		string var = codeGenerator.freshRegister();
 		string command = var + " = getelementptr " + typeOfString + ", " + typeOfString + "* " + nameOfString + ", i32 0, i32 0";
 		codeBuffer.emit(command);
-		$$ = new Symbol("STRING", $1->getType());
-		$$->setVariable(var);
+		// string strName = "str"+ std::to_string(codeGenerator.getStringCounter());
+		// int variableOffset = scopeManager.getOffset();
+		$$ = new myString("STRING", $1->getName(), var, -1);
+		// shared_ptr<myString> newSymbol = make_shared<myString>(strName, $1->getName(), var, variableOffset);
+		// scopeManager.insertSymbol(std::dynamic_pointer_cast<Symbol>(newSymbol));
 	}
 
 	| TRUE {
@@ -508,7 +495,12 @@ Exp: LPAREN Exp RPAREN
 		string var = codeGenerator.freshRegister();
 		string code = var + " = add i1 1,0";
 		codeBuffer.emit(code);
-		$$->setVariable(var);
+		$$->setRegName(var);
+		string trueLabel = codeBuffer.freshLabel(), falseLabel = codeBuffer.freshLabel();
+		$$->setTrueLabel(trueLabel);
+		$$->setFalseLabel(falseLabel);
+		codeGenerator.setMostRecentTrueLabel(trueLabel);
+		codeBuffer.emit("br label %" + trueLabel);
 	}
 
 	| FALSE {
@@ -516,9 +508,13 @@ Exp: LPAREN Exp RPAREN
 		string var = codeGenerator.freshRegister();
 		string s = var + " = add i1 0,0";
 		codeBuffer.emit(s);
-		$$->setVariable(var);
+		$$->setRegName(var);
+		string trueLabel = codeBuffer.freshLabel(), falseLabel = codeBuffer.freshLabel();
+		$$->setTrueLabel(trueLabel);
+		$$->setFalseLabel(falseLabel);
+		codeGenerator.setMostRecentTrueLabel(trueLabel);
+		codeBuffer.emit("br label %" + falseLabel);
 	}
-
 	| NOT Exp
 	{
 		if ($2->getType() != "BOOL")
@@ -526,151 +522,80 @@ Exp: LPAREN Exp RPAREN
 			output::errorMismatch(yylineno);
 			exit(0);
 		}
-		$$ = $2;
-
-		// backaptching TODO: remove!
-		/* string branch_cmd_exp1 = "br i1 " + $2->getVariable() + ", label @, label @";
-		int br_exp1_address = codeBuffer.emit(branch_cmd_exp1);
-		auto exp_1_newTrueList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
-		auto exp_1_newFalseList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, SECOND));
-
-		string true_label = codeBuffer.genLabel();
-		int br_trueLabel_address = codeBuffer.emit("br label @");
-		auto br_trueLabel_List = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_trueLabel_address, FIRST));
-		string false_label = codeBuffer.genLabel();
-		int br_falseLabel_address = codeBuffer.emit("br label @");
-		auto br_falseLabel_List = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_falseLabel_address, FIRST));
-		string finalResultLabel = codeBuffer.genLabel();
-		string finalResultVar = codeBuffer.newTemp();
-		string phi_cmd = finalResultVar + " = phi i1 [0, %" + false_label + "], [1, %" + true_label + "]";
-		codeBuffer.emit(phi_cmd);
-		codeBuffer.bpatch(exp_1_newTrueList, false_label);
-		codeBuffer.bpatch(exp_1_newFalseList, true_label);
-		codeBuffer.bpatch(br_trueLabel_List, finalResultLabel);
-		codeBuffer.bpatch(br_falseLabel_List, finalResultLabel);
-		$$->setVariable(finalResultVar); */
+		string trueLabel = codeBuffer.freshLabel();
+		string falseLabel = codeBuffer.freshLabel();
+		$$ = new Symbol("BOOL", $2->getName(), $2->getRegName(), -1, trueLabel, falseLabel);
+		codeBuffer.emit($2->getFalseLabel() + ":");
+		codeBuffer.emit("br label %" + trueLabel);
+		codeBuffer.emit($2->getTrueLabel() + ":");
+		codeBuffer.emit("br label %" + falseLabel);
+		codeGenerator.setMostRecentTrueLabel(trueLabel);
 	}
-
-	| Exp AND
+	| Exp AND { CodeBuffer::instance().emit($1->getTrueLabel() + ":"); } Exp
 	{
-		// backaptching TODO: remove!
-		/* string branch_cmd_exp1 = "br i1 " + $1->getVariable() + ", label @, label @";
-		int br_exp1_address = codeBuffer.emit(branch_cmd_exp1);
-		auto exp_1_newTrueList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
-		auto exp_1_newFalseList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, SECOND));
-		$1->trueList = codeBuffer.merge(exp_1_newTrueList, $1->trueList);
-		$1->falseList = codeBuffer.merge(exp_1_newFalseList, $1->falseList);
-		string exp1_true_label = codeBuffer.genLabel();
-		codeBuffer.bpatch($1->trueList, exp1_true_label); */
-	}
-	Exp
-	{
-		if($1->getType() != "BOOL" || $4->getType() != "BOOL" )
+		if ($4->getType() != "BOOL" or $1->getType() != "BOOL")
 		{
 			output::errorMismatch(yylineno);
 			exit(0);
 		}
-		$$ = $1;
-
-		// backaptching TODO: remove!
-		/* string branch_cmd_exp2 = "br i1 " + $4->getVariable() + ", label @, label @";
-		int br_exp2_address = codeBuffer.emit(branch_cmd_exp2);
-		auto exp_2_newTrueList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp2_address, FIRST));
-		auto exp_2_newFalseList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp2_address, SECOND));
-		$4->trueList = codeBuffer.merge(exp_2_newTrueList, $4->trueList);
-		$4->falseList = codeBuffer.merge(exp_2_newFalseList, $4->falseList);
-		string true_label = codeBuffer.genLabel();
-		int br_trueLabel_address = codeBuffer.emit("br label @");
-		auto br_trueLabel_List = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_trueLabel_address, FIRST));
-		string false_label = codeBuffer.genLabel();
-		int br_falseLabel_address = codeBuffer.emit("br label @");
-		auto br_falseLabel_List = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_falseLabel_address, FIRST));
-		string finalResultLabel = codeBuffer.genLabel();
-		string finalResultVar = codeBuffer.newTemp();
-		string phi_cmd = finalResultVar + " = phi i1 [0, %" + false_label + "], [1, %" + true_label + "]";
-		codeBuffer.emit(phi_cmd);
-		codeBuffer.bpatch($1->falseList, false_label);
-		codeBuffer.bpatch($4->trueList, true_label);
-		codeBuffer.bpatch($4->falseList, false_label);
-		codeBuffer.bpatch(br_trueLabel_List, finalResultLabel);
-		codeBuffer.bpatch(br_falseLabel_List, finalResultLabel);
-		$$->setVariable(finalResultVar); */
+		string trueLabel = codeBuffer.freshLabel();
+		string falseLabel = codeBuffer.freshLabel();
+		codeBuffer.emit($4->getTrueLabel() + ":");
+		codeBuffer.emit("br label %" + trueLabel);
+		codeBuffer.emit($1->getFalseLabel() + ":");
+		codeBuffer.emit("br label %" + falseLabel);
+		codeBuffer.emit($4->getFalseLabel() + ":");
+		codeBuffer.emit("br label %" + falseLabel);
+		$$ = new Symbol("BOOL", $1->getName(), $1->getRegName(), -1, trueLabel, falseLabel);
+		codeGenerator.setMostRecentTrueLabel(trueLabel);
 	}
-
-	| Exp OR
+	| Exp OR { CodeBuffer::instance().emit($1->getFalseLabel() + ":"); } Exp
 	{
-		// backaptching TODO: remove!
-		/* string branch_cmd_exp1 = "br i1 " + $1->getVariable() + ", label @, label @";
-		int br_exp1_address = codeBuffer.emit(branch_cmd_exp1);
-		auto exp_1_newTrueList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, FIRST));
-		auto exp_1_newFalseList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp1_address, SECOND));
-		$1->trueList = codeBuffer.merge(exp_1_newTrueList, $1->trueList);
-		$1->falseList = codeBuffer.merge(exp_1_newFalseList, $1->falseList);
-		string exp1_false_label = codeBuffer.genLabel();
-		codeBuffer.bpatch($1->falseList, exp1_false_label); */
-	}
-	Exp
-	{
-		if ($1->getType() != "BOOL" || $4->getType() != "BOOL" )
+		if ($4->getType() != "BOOL" or $1->getType() != "BOOL")
 		{
 			output::errorMismatch(yylineno);
 			exit(0);
 		}
-		$$ = $1;
-
-		// backaptching TODO: remove!
-		/* string branch_cmd_exp2 = "br i1 " + $4->getVariable() + ", label @, label @";
-		int br_exp2_address = codeBuffer.emit(branch_cmd_exp2);
-		auto exp_2_newTrueList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp2_address, FIRST));
-		auto exp_2_newFalseList = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_exp2_address, SECOND));
-		$4->trueList = codeBuffer.merge(exp_2_newTrueList, $4->trueList);
-		$4->falseList = codeBuffer.merge(exp_2_newFalseList, $4->falseList);
-		string false_label = codeBuffer.genLabel();
-		int br_falseLabel_address = codeBuffer.emit("br label @");
-		auto br_falseLabel_List = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_falseLabel_address, FIRST));
-		string true_label = codeBuffer.genLabel();
-		int br_trueLabel_address = codeBuffer.emit("br label @");
-		auto br_trueLabel_List = codeBuffer.makelist(pair<int, BranchLabelIndex>(br_trueLabel_address, FIRST));
-		string finalResultLabel = codeBuffer.genLabel();
-		string finalResultVar = codeBuffer.newTemp();
-		string phi_cmd = finalResultVar + " = phi i1 [0, %" + false_label + "], [1, %" + true_label + "]";
-		codeBuffer.emit(phi_cmd);
-		codeBuffer.bpatch($1->trueList, true_label);
-		codeBuffer.bpatch($4->trueList, true_label);
-		codeBuffer.bpatch($4->falseList, false_label);
-		codeBuffer.bpatch(br_trueLabel_List, finalResultLabel);
-		codeBuffer.bpatch(br_falseLabel_List, finalResultLabel);
-		$$->setVariable(finalResultVar); */
+		string trueLabel = codeBuffer.freshLabel();
+		string falseLabel = codeBuffer.freshLabel();
+		codeBuffer.emit($1->getTrueLabel() + ":");
+		codeBuffer.emit("br label %" + trueLabel);
+		codeBuffer.emit($4->getTrueLabel() + ":");
+		codeBuffer.emit("br label %" + trueLabel);
+		codeBuffer.emit($4->getFalseLabel() + ":");
+		codeBuffer.emit("br label %" + falseLabel);
+		$$ = new Symbol("BOOL", $1->getName(), $1->getRegName(), -1, trueLabel, falseLabel);
+		codeGenerator.setMostRecentTrueLabel(trueLabel);
 	}
-
-	| Exp NONASSOCCRELOP Exp
+		| Exp NONASSOCCRELOP Exp
 	{
 		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
 		bool exp2IsNumericType = $3->getType() == "INT" or $3->getType() == "BYTE";
-		if (!exp1IsNumericType or !exp2IsNumericType)
+		if (!exp1IsNumericType || !exp2IsNumericType)
 		{
 			output::errorMismatch(yylineno);
 			exit(0);
 		}
-		$$ = new Symbol("BOOL", "BOOL");
 
 		bool isSigned = ($1->getType() == "INT" or $3->getType() == "INT");
 		string equalOperator = isSigned ?  "sgt" :"ugt";
-		if ($2->getType() == ">=")
+		if ($2->getName() == ">=")
 			equalOperator = isSigned ?  "sge" : "uge";
-		else if ($2->getType() == "<")
+		else if ($2->getName() == "<")
 			equalOperator = isSigned ?  "slt" : "ult";
-		else if (!$2->getType().compare("<="))
+		else if ($2->getName() == "<=")
 			equalOperator = isSigned ?  "sle" : "ule";
 
+		string newRegister = codeGenerator.freshRegister();
+		codeBuffer.emit(newRegister + " = icmp " + equalOperator + " i32 " + $1->getRegName() + ", " + $3->getRegName());
 
-		string newVar = codeGenerator.freshRegister();
-		string cmpCommand;
-		cmpCommand = newVar + " = icmp " + equalOperator + " i32 " + $1->getVariable() + ", " + $3->getVariable();
-		$$->setVariable(newVar);
-		codeBuffer.emit(cmpCommand);
+		string trueLabel = codeBuffer.freshLabel();
+        string falseLabel = codeBuffer.freshLabel();
+		codeBuffer.emit("br i1 " + newRegister + ", label %" + trueLabel + ", label %" + falseLabel);
+
+		$$ = new Symbol("BOOL", "BOOL", newRegister, -1, trueLabel, falseLabel);
+		codeGenerator.setMostRecentTrueLabel(trueLabel);
 	}
-
 	| Exp EQUALITY Exp
 	{
 		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
@@ -680,40 +605,67 @@ Exp: LPAREN Exp RPAREN
 			output::errorMismatch(yylineno);
 			exit(0);
 		}
-
-		$$= new Symbol("BOOL", "BOOL");
-
 		string equalCmd = $2->getType() == "==" ? "eq" : "ne";
 		string newRegister = codeGenerator.freshRegister();
 		string cmpCommand;
-		cmpCommand = newRegister +" = icmp "+ equalCmd +" i32 " + $1->getVariable() + ", " + $3->getVariable() ;
-		$$->setVariable(newRegister);
+		cmpCommand = newRegister +" = icmp "+ equalCmd +" i32 " + $1->getRegName() + ", " + $3->getRegName() ;
 		codeBuffer.emit(cmpCommand);
+
+		string trueLabel = codeBuffer.freshLabel();
+        string falseLabel = codeBuffer.freshLabel();
+		codeBuffer.emit("br i1 " + newRegister + ", label %" + trueLabel + ", label %" + falseLabel);
+
+		$$= new Symbol("BOOL", "BOOL", newRegister, -1, trueLabel, falseLabel);
+		codeGenerator.setMostRecentTrueLabel(trueLabel);
 	}
-	| LPAREN Type RPAREN Exp %prec tempp
+	| LPAREN Type RPAREN Exp
 	{
 		bool isByteType = $2->getType() == "BYTE";
-		bool isIntType 	= $2->getType() == "INT";
-		bool isByteExp 	= $4->getType() == "BYTE";
-		bool isIntExp 	= $4->getType() == "INT";
-
-		if( (!isIntType and !isByteType) or (!isByteExp and !isIntExp)){
+		bool isIntType  = $2->getType() == "INT";
+		bool isByteExp  = $4->getType() == "BYTE";
+		bool isIntExp   = $4->getType() == "INT";
+		if( (!isIntType and !isByteType) or (!isByteExp and !isIntExp) )
+		{
 			output::errorMismatch(yylineno);
 			exit(0);
 		}
+		// check if casting to bye is valid
+		if(isByteType and ($4->getValue()>255 or $4->getValue()<0))
+		{
+			string stringValue = codeGenerator.intToString($4->getValue());
+			output::errorByteTooLarge(yylineno, stringValue);
+			exit(0);
+		}
 		$$ = $4;
-		$$->getType() = $2->getType();
-	};
+		$$->setType($2->getType());
+	}
 
+FINISH:
+{
+    scopeManager.popScope();
+};
+
+A: { codeBuffer.emit(codeGenerator.getMostRecentTrueLabel()); }
+PUSH_SCOPE: { scopeManager.pushScope(ScopeType::BLOCK); }
+PUSH_WHILE_SCOPE: { scopeManager.pushScope(ScopeType::WHILE_LOOP); }
+
+MARKER:
+{
+	string startLabel = codeBuffer.freshLabel();
+	string endLabel = codeBuffer.freshLabel();
+	scopeManager.setLastScopeStartLabel(startLabel);
+	scopeManager.setLastScopeEndLabel(endLabel);
+	codeBuffer.emit("br label %" + startLabel);
+	codeBuffer.emit(startLabel + ":");
+}
 %%
 
 int main()
 {
 	/* -- initialize the system -- */
-	int offset = scopeManager.getOffset();
-	scopeManager.insertSymbol(shared_ptr<Function>(new Function("print", "FUNCTION", "NO VARIABLE ALLOCATED", offset, "VOID", {"STRING"})));
-	scopeManager.insertSymbol(shared_ptr<Function>(new Function("printi","FUNCTION", "NO VARIABLE ALLOCATED", offset, "VOID", {"INT"})));
-	scopeManager.insertSymbol(shared_ptr<Function>(new Function("readi", "FUNCTION", "NO VARIABLE ALLOCATED", offset, "INT", {"INT"})));
+	scopeManager.insertSymbol(shared_ptr<Function>(new Function("print", scopeManager.getOffset(), "VOID", {"STRING"})));
+	scopeManager.insertSymbol(shared_ptr<Function>(new Function("printi", scopeManager.getOffset(), "VOID", {"INT"})));
+	scopeManager.insertSymbol(shared_ptr<Function>(new Function("readi", scopeManager.getOffset(), "INT", {"INT"})));
 
 	codeBuffer.emitGlobal("declare i32 @printf(i8*, ...)");
 	codeBuffer.emitGlobal("declare i32 @scanf(i8*, ...)");
