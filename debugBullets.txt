@@ -21,3 +21,15 @@ Seems like the problem is in the second loop.
 
 - FINAL Update:
 The problem is in the offset counter! When opening a new block, I reset it back to zero for the current block, when I should keep on incrementing it!
+
+
+
+Problem 2:
+    my lexer can't analyze comments
+- update: it can, but the there should be a space after! like // comment and not like //comment.
+
+Problem 3: (Undefined Label):
+    - Update: the problem is when having if else if else labels, I need more than one variable to hold the labels.
+    currently I have one that doesn't "memorize" all of the previous labels.
+
+TODO: don't forget to add the implementtion for divition by zero!!

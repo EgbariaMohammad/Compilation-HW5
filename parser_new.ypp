@@ -10,7 +10,7 @@
 	ScopeManager& scopeManager = ScopeManager::getInstance();
 	CodeGenerator& codeGenerator = CodeGenerator::getInstance();
 	CodeBuffer& codeBuffer = CodeBuffer::instance();
-	string tempLabel;
+	vector<string> ifElseLabels;
 
     // *** Flex externals *** //
 	extern int yylex();
@@ -205,12 +205,13 @@ Statement :
 	| IF LPAREN Exp A RPAREN PUSH_SCOPE Statement ELSE {
 		scopeManager.popScope();
 		scopeManager.pushScope(ScopeType::ELSE_STATEMENT);
-		tempLabel = codeBuffer.freshLabel();
-		codeBuffer.emit("br label %" + tempLabel);
+		ifElseLabels.push_back(codeBuffer.freshLabel());
+		codeBuffer.emit("br label %" + ifElseLabels.back());
 		codeBuffer.emit($3->getFalseLabel() + ":");
 	} Statement {
-		codeBuffer.emit("br label %" + tempLabel);
-		codeBuffer.emit(tempLabel + ":");
+		codeBuffer.emit("br label %" + ifElseLabels.back());
+		codeBuffer.emit(ifElseLabels.back() + ":");
+		ifElseLabels.pop_back();
 		scopeManager.popScope();
 	}
 	| WHILE PUSH_WHILE_SCOPE MARKER LPAREN Exp RPAREN
