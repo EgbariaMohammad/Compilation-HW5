@@ -24,6 +24,8 @@
 	extern int yylex();
 	extern int yylineno;
 	void yyerror(const char *message);
+
+	#pragma GCC diagnostic ignored "-Wfree-nonheap-object"
 %}
 
 %token 		VOID
