@@ -17,6 +17,7 @@
 	void checkSymbolExistence(Symbol* symbol);
 	void checkIfNumeric(Symbol* leftHand, Symbol* rightHand);
 	void zeroExtendByte(string resultRegister, Symbol* symbol);
+	void checkIfScopeIsWhileLoop();
 
     // *** Flex externals *** //
 	extern int yylex();
@@ -175,22 +176,12 @@ Statement :
 	}
 	| BREAK SC
 	{
-		bool inWhile = scopeManager.searchIfScopeOpen(ScopeType::WHILE_LOOP);
-		if (!inWhile)
-		{
-			output::errorUnexpectedBreak(yylineno);
-			exit(0);
-		}
+		checkIfScopeIsWhileLoop();
 		codeBuffer.emit("br label %" + scopeManager.getLastWhileScopeEndLabel());
 	}
 	| CONTINUE SC
 	{
-		bool inWhile = scopeManager.searchIfScopeOpen(ScopeType::WHILE_LOOP);
-		if (!inWhile)
-		{
-			output::errorUnexpectedContinue(yylineno);
-			exit(0);
-		}
+		checkIfScopeIsWhileLoop();
 		codeBuffer.emit("br label %" + scopeManager.getLastWhileScopeStartLabel());
 	};
 
@@ -365,7 +356,6 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
         }
         $$ = new Symbol(typeOfId, $1->getName(), finalValueRegister, -1, trueLabel, falseLabel);
 	}
-
 	| Call { $$ = $1; }
 
 	| NUM {
@@ -374,7 +364,6 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 		codeBuffer.emit(code);
 		$$->setRegName(variable);
 	}
-
 	| NUM B
 	{
 		int value = $1->getValue();
@@ -674,4 +663,13 @@ void zeroExtendByte(string resultRegister, Symbol* symbol) {
 	string zextValueCode = zextValue + " = zext i8 " + truncValue + " to i32";
 	codeBuffer.emit(zextValueCode);
 	symbol->setRegName(zextValue);
+}
+
+void checkIfScopeIsWhileLoop(){
+	bool inWhile = scopeManager.searchIfScopeOpen(ScopeType::WHILE_LOOP);
+	if (!inWhile)
+	{
+		output::errorUnexpectedBreak(yylineno);
+		exit(0);
+	}
 }

@@ -17,7 +17,7 @@ int CodeBuffer::bufferSize() const {
 
 string CodeBuffer::freshLabel(){
 	std::stringstream label;
-	label << "label_" << ++labels_num;
+	label << "label_" << (labels_num+=2);
 	return label.str();
 }
 
