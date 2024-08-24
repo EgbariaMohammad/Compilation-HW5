@@ -1,6 +1,6 @@
 %{
     #include "Symbol.hpp"
-    #include "parser_new.tab.hpp"
+    #include "parser.tab.hpp"
     #include "hw3_output.hpp"
 %}
 %option yylineno

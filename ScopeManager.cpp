@@ -36,7 +36,7 @@ void ScopeManager::popScope()
 void ScopeManager::insertSymbol(const shared_ptr<Symbol>& e)
 {
     scopes.back().first->AddSymbol(e);
-    offsets.push(offsets.top()+1);
+    offsets.push(offsets.top()+2);
 }
 
 bool ScopeManager::findSymbol(const string& name) const

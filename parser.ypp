@@ -1,16 +1,22 @@
 %{
     // *** includes *** //
-    #include "cg.hpp"
+	#include "cg.hpp"
 	#include "Symbol.hpp"
 	#include "ScopeManager.hpp"
-    #include "hw3_output.hpp"
+	#include "hw3_output.hpp"
 	#include <algorithm>
 
-    // *** Declarations *** //
+    // *** Variables Declarations *** //
 	ScopeManager& scopeManager = ScopeManager::getInstance();
 	CodeGenerator& codeGenerator = CodeGenerator::getInstance();
 	CodeBuffer& codeBuffer = CodeBuffer::instance();
 	vector<string> ifElseLabels;
+
+	// *** Funcitons Declarations *** //
+	void storeOrLoadVariableToStack(const string& varOffset, string newVariable1, Symbol* symbol);
+	void checkSymbolExistence(Symbol* symbol);
+	void checkIfNumeric(Symbol* leftHand, Symbol* rightHand);
+	void zeroExtendByte(string resultRegister, Symbol* symbol);
 
     // *** Flex externals *** //
 	extern int yylex();
@@ -73,7 +79,7 @@ Statement :
 
         string varOffset = codeGenerator.intToString(variableOffset);
 		string varAddress = codeGenerator.freshRegister();
-		string allocCode = varAddress + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
+		string allocCode = varAddress + " = getelementptr [100 x i32], [100 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
 		string storeValCode = "store i32 0, i32* " + varAddress;
 		codeBuffer.emit(allocCode);
 		codeBuffer.emit(storeValCode);
@@ -101,45 +107,17 @@ Statement :
             exit(0);
 		}
 
-        //here we know that assign is legal and symbol doesn't exists
+        // here we know that assign is legal and symbol doesn't exists
         int variableOffset = scopeManager.getOffset();
 		shared_ptr<Symbol> newSymbol = make_shared<Symbol>($1->getType(), $2->getName(), "NO VARIABLE", variableOffset);
 		scopeManager.insertSymbol(newSymbol);
         string varOffset = codeGenerator.intToString(variableOffset);
         string newVariable1 = codeGenerator.freshRegister();
-        if($4->getType() == "BOOL")
-		{
-			string NextLabel = codeBuffer.freshLabel();
-			string newValue1 = codeGenerator.freshRegister();
-			string newValue2 = codeGenerator.freshRegister();
-			string newVariable2 = codeGenerator.freshRegister();
-			codeBuffer.emit($4->getTrueLabel() + ":");
-			codeBuffer.emit(newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
-			codeBuffer.emit(newValue1 + " = zext i1 1 to i32");
-			codeBuffer.emit("store i32 " + newValue1 + ", i32* " + newVariable1);
-			codeBuffer.emit("br label %" + NextLabel);
-			codeBuffer.emit($4->getFalseLabel() + ":");
-			codeBuffer.emit(newVariable2 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
-			codeBuffer.emit(newValue2 + " = zext i1 0 to i32");
-			codeBuffer.emit("store i32 " + newValue2 + ", i32* " + newVariable2);
-			codeBuffer.emit("br label %" + NextLabel);
-			codeBuffer.emit(NextLabel + ":");
-		}
-		else {
-			string code1 = newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
-			string code2 = "store i32 " + $4->getRegName() + ", i32* " + newVariable1;
-			codeBuffer.emit(code1);
-			codeBuffer.emit(code2);
-		}
+		storeOrLoadVariableToStack(varOffset, newVariable1, $4);
     }
 	| ID ASSIGN Exp SC
 	{
-		bool exists = scopeManager.findSymbol($1->getName()) == true;
-		if(!exists)
-		{
-			output::errorUndef(yylineno, $1->getName());
-			exit(0);
-		}
+		checkSymbolExistence($1);
 		shared_ptr<Symbol> symbol = scopeManager.getSymbol($1->getName());
 		bool expInt = $3->getType() == "INT";
 		bool expByte = $3->getType() == "BYTE";
@@ -161,38 +139,7 @@ Statement :
         int variableOffset = symbol->getOffset();
         string varOffset = codeGenerator.intToString(variableOffset);
 		string newVariable1 = codeGenerator.freshRegister();
-        if($3->getType() == "BOOL")
-		{
-			string NextLabel = codeBuffer.freshLabel();
-			string newValue1 = codeGenerator.freshRegister();
-			string newValue2 = codeGenerator.freshRegister();
-			string newVariable2 = codeGenerator.freshRegister();
-			codeBuffer.emit($3->getTrueLabel() + ":");
-			codeBuffer.emit(newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
-			codeBuffer.emit(newValue1 + " = zext i1 1 to i32");
-			codeBuffer.emit("store i32 " + newValue1 + ", i32* " + newVariable1);
-			codeBuffer.emit("br label %" + NextLabel);
-			codeBuffer.emit($3->getFalseLabel() + ":");
-			codeBuffer.emit(newVariable2 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
-			codeBuffer.emit(newValue2 + " = zext i1 0 to i32");
-			codeBuffer.emit("store i32 " + newValue2 + ", i32* " + newVariable2);
-			codeBuffer.emit("br label %" + NextLabel);
-			codeBuffer.emit(NextLabel + ":");
-		}
-		else if($2->getType() == "BYTE")
-		{
-			codeBuffer.emit(newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
-			string newVariable2 = codeGenerator.freshRegister();
-			codeBuffer.emit(newVariable2 + " = zext i8 " + $4->getRegName() + " to i32");
-			codeBuffer.emit("store i32 " + newVariable2 + ", i32* " + newVariable1);
-		}
-		else
-		{
-			string code1 = newVariable1 + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
-			string code2 = "store i32 " + $3->getRegName() + ", i32* " + newVariable1;
-			codeBuffer.emit(code1);
-			codeBuffer.emit(code2);
-		}
+		storeOrLoadVariableToStack(varOffset, newVariable1, $3);
 	}
 	| Call SC {}
 	| RETURN SC { codeBuffer.emit("ret i32 0"); }
@@ -297,13 +244,7 @@ Type: INT  { $$ = new Symbol("INT", "INT");   }
 Exp: LPAREN Exp RPAREN { $$ = $2; }
 	| Exp MUL Exp
 	{
-		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
-		bool exp2IsNumericType = $3->getType() == "INT" or $3->getType() == "BYTE";
-		if (!exp1IsNumericType or !exp2IsNumericType)
-		{
-			output::errorMismatch(yylineno);
-			exit(0);
-		}
+		checkIfNumeric($1, $3);
 		bool intMultiplication = $1->getType() == "INT" or $3->getType() == "INT";
 		string resultType = intMultiplication ? "INT" : "BYTE";
 		$$ = new Symbol(resultType, resultType);
@@ -328,13 +269,7 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 	}
 	| Exp DIV Exp
 	{
-		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
-		bool exp2IsNumericType = $3->getType() == "INT" or $3->getType() == "BYTE";
-		if (!exp1IsNumericType || !exp2IsNumericType)
-		{
-			output::errorMismatch(yylineno);
-			exit(0);
-		}
+		checkIfNumeric($1, $3);
 		bool intDivision = $1->getType() == "INT" or $3->getType() == "INT";
 		string resultType = intDivision ? "INT" : "BYTE";
 		$$ = new Symbol(resultType, resultType);
@@ -351,13 +286,7 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 	}
 	| Exp ADD Exp
 	{
-		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
-		bool exp2IsNumericType = $3->getType() == "INT" or $3->getType() == "BYTE";
-		if (!exp1IsNumericType || !exp2IsNumericType)
-		{
-			output::errorMismatch(yylineno);
-			exit(0);
-		}
+		checkIfNumeric($1, $3);
 		bool intAdditive = $1->getType() == "INT" or $3->getType() == "INT";
 		string resultType = intAdditive ? "INT" : "BYTE";
 		$$ = new Symbol(resultType, resultType);
@@ -382,13 +311,7 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 	}
 	| Exp SUB Exp
 	{
-		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
-		bool exp2IsNumericType = $3->getType() == "INT" or $3->getType() == "BYTE";
-		if (!exp1IsNumericType || !exp2IsNumericType)
-		{
-			output::errorMismatch(yylineno);
-			exit(0);
-		}
+		checkIfNumeric($1, $3);
 		bool intSubtraction = $1->getType() == "INT" or $3->getType() == "INT";
 		string resultType = intSubtraction ? "INT" : "BYTE";
 		$$ = new Symbol(resultType, resultType);
@@ -413,12 +336,7 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 	}
 	| ID
 	{
-		bool exists = scopeManager.findSymbol($1->getName()) == true;
-		if(!exists)
-		{
-			output::errorUndef(yylineno, $1->getName());
-			exit(0);
-		}
+		checkSymbolExistence($1);
 		shared_ptr<Symbol> symbol = scopeManager.getSymbol($1->getName());
         string typeOfId = symbol->getType(); // TODO: check if function!
         if(typeOfId == "FUNCTION") {
@@ -428,7 +346,7 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 		string varOffset = codeGenerator.intToString(symbol->getOffset());
         string addressVariable = codeGenerator.freshRegister();
         string valueVariable = codeGenerator.freshRegister();
-        codeBuffer.emit(addressVariable + " = getelementptr [50 x i32], [50 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
+        codeBuffer.emit(addressVariable + " = getelementptr [100 x i32], [100 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
         codeBuffer.emit(valueVariable + " = load i32, i32* " + addressVariable);
         string trueLabel = codeBuffer.freshLabel();
         string falseLabel = codeBuffer.freshLabel();
@@ -483,11 +401,7 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 		string var = codeGenerator.freshRegister();
 		string command = var + " = getelementptr " + typeOfString + ", " + typeOfString + "* " + nameOfString + ", i32 0, i32 0";
 		codeBuffer.emit(command);
-		// string strName = "str"+ std::to_string(codeGenerator.getStringCounter());
-		// int variableOffset = scopeManager.getOffset();
-		$$ = new myString("STRING", $1->getName(), var, -1);
-		// shared_ptr<myString> newSymbol = make_shared<myString>(strName, $1->getName(), var, variableOffset);
-		// scopeManager.insertSymbol(std::dynamic_pointer_cast<Symbol>(newSymbol));
+		$$ = new myString("STRING", $1->getName(), var, codeGenerator.getStringCounter());
 	}
 
 	| TRUE {
@@ -569,14 +483,7 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 	}
 		| Exp NONASSOCCRELOP Exp
 	{
-		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
-		bool exp2IsNumericType = $3->getType() == "INT" or $3->getType() == "BYTE";
-		if (!exp1IsNumericType || !exp2IsNumericType)
-		{
-			output::errorMismatch(yylineno);
-			exit(0);
-		}
-
+		checkIfNumeric($1, $3);
 		bool isSigned = ($1->getType() == "INT" or $3->getType() == "INT");
 		string equalOperator = isSigned ?  "sgt" :"ugt";
 		if ($2->getName() == ">=")
@@ -598,13 +505,7 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 	}
 	| Exp EQUALITY Exp
 	{
-		bool exp1IsNumericType = $1->getType() == "INT" or $1->getType() == "BYTE";
-		bool exp2IsNumericType = $3->getType() == "INT" or $3->getType() == "BYTE";
-		if (!exp1IsNumericType or !exp2IsNumericType)
-		{
-			output::errorMismatch(yylineno);
-			exit(0);
-		}
+		checkIfNumeric($1, $3);
 		string equalCmd = $2->getType() == "==" ? "eq" : "ne";
 		string newRegister = codeGenerator.freshRegister();
 		string cmpCommand;
@@ -696,9 +597,8 @@ int main()
 	codeBuffer.emit("}");
 
 	codeBuffer.emit("define i32 @main(){");
-	// alloca 50 local variables on stack :
-	codeBuffer.emit("%size = add i32 50, 0");
-	codeBuffer.emit("%stack_ptr = alloca [50 x i32]");
+	// alloca 100 local variables on stack :
+	codeBuffer.emit("%stack_ptr = alloca [100 x i32]");
 	int parserReturnVal = yyparse();
 	codeBuffer.emit("ret i32 0");
 	codeBuffer.emit("}");
@@ -715,4 +615,63 @@ int main()
 void yyerror(const char *message)
 {
 	output::errorSyn(yylineno);
+}
+
+
+void storeOrLoadVariableToStack(const string& varOffset, string newVariable1, Symbol* symbol)
+{
+	if(symbol->getType() == "BOOL")
+	{
+		string NextLabel = codeBuffer.freshLabel();
+		string newValue1 = codeGenerator.freshRegister();
+		string newValue2 = codeGenerator.freshRegister();
+		string newVariable2 = codeGenerator.freshRegister();
+		codeBuffer.emit(symbol->getTrueLabel() + ":");
+		codeBuffer.emit(newVariable1 + " = getelementptr [100 x i32], [100 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
+		codeBuffer.emit(newValue1 + " = zext i1 1 to i32");
+		codeBuffer.emit("store i32 " + newValue1 + ", i32* " + newVariable1);
+		codeBuffer.emit("br label %" + NextLabel);
+		codeBuffer.emit(symbol->getFalseLabel() + ":");
+		codeBuffer.emit(newVariable2 + " = getelementptr [100 x i32], [100 x i32]* %stack_ptr, i32 0, i32 " + varOffset);
+		codeBuffer.emit(newValue2 + " = zext i1 0 to i32");
+		codeBuffer.emit("store i32 " + newValue2 + ", i32* " + newVariable2);
+		codeBuffer.emit("br label %" + NextLabel);
+		codeBuffer.emit(NextLabel + ":");
+	}
+	else {
+		string code1 = newVariable1 + " = getelementptr [100 x i32], [100 x i32]* %stack_ptr, i32 0, i32 " + varOffset;
+		string code2 = "store i32 " + symbol->getRegName() + ", i32* " + newVariable1;
+		codeBuffer.emit(code1);
+		codeBuffer.emit(code2);
+	}
+}
+
+void checkSymbolExistence(Symbol* symbol) {
+	bool exists = scopeManager.findSymbol(symbol->getName()) == true;
+	if(!exists)
+	{
+		output::errorUndef(yylineno, symbol->getName());
+		exit(0);
+	}
+}
+
+void checkIfNumeric(Symbol* leftHand, Symbol* rightHand)
+{
+	bool exp1IsNumericType = leftHand->getType() == "INT" or leftHand->getType() == "BYTE";
+	bool exp2IsNumericType = rightHand->getType() == "INT" or rightHand->getType() == "BYTE";
+	if (!exp1IsNumericType || !exp2IsNumericType)
+	{
+		output::errorMismatch(yylineno);
+		exit(0);
+	}
+}
+
+void zeroExtendByte(string resultRegister, Symbol* symbol) {
+	string truncValue = codeGenerator.freshRegister();
+	string truncValueCode = truncValue + " = trunc i32 " + resultRegister + " to i8";
+	codeBuffer.emit(truncValueCode);
+	string zextValue = codeGenerator.freshRegister();
+	string zextValueCode = zextValue + " = zext i8 " + truncValue + " to i32";
+	codeBuffer.emit(zextValueCode);
+	symbol->setRegName(zextValue);
 }
