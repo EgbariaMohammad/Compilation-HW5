@@ -266,20 +266,11 @@ Exp: LPAREN Exp RPAREN { $$ = $2; }
 		string resultType = intDivision ? "INT" : "BYTE";
 		$$ = new Symbol(resultType, resultType);
 
-		string divisionLabel = codeBuffer.freshLabel();
-		string comparisionRegister = codeGenerator.freshRegister();
-		string compareWithZeroCode = comparisionRegister + " = icmp eq i32 0, " + $3->getRegName();
-		string branchLine = "br i1 " + comparisionRegister + ", label %DIV_BY_ZERO, label %" + divisionLabel;
+		codeBuffer.emit("call void @checkDivisionByZero(i32 " + $3->getRegName() + ")");
 
 		string resultRegister = codeGenerator.freshRegister();
 		string divisionType = (resultType == "BYTE") ? " = udiv i32 " : " = sdiv i32 ";
 		string divisionCommand = resultRegister + divisionType + $1->getRegName() + "," + $3->getRegName();
-
-		codeBuffer.emit(compareWithZeroCode); 			 // check if dividing by zero
-		codeBuffer.emit(branchLine);					 // if so, jump to DIV_BY_ZERO, otherwise, jump to divisionLabel
-		codeBuffer.emit("DIV_BY_ZERO:");	 // if diviosn by zero will ge here and exit
-		printDivByZeroIRCode(); 						 // print function call;
-		codeBuffer.emit(divisionLabel+":"); 			 // otherwise, we'll get here
 		codeBuffer.emit(divisionCommand); 				 // ptint division code, and continue;
 		$$->setRegName(resultRegister);
 		$$->setType(resultType);
@@ -594,6 +585,8 @@ int main()
 	codeBuffer.emit("ret i32 %val");
 	codeBuffer.emit("}");
 
+	printDivByZeroIRCode();
+
 	codeBuffer.emit("define i32 @main(){");
 	// alloca 100 local variables on stack :
 	codeBuffer.emit("%stack_ptr = alloca [100 x i32]");
@@ -685,7 +678,14 @@ void checkIfScopeIsWhileLoop(){
 
 
 void printDivByZeroIRCode(){
-	codeBuffer.emit("DIV_BY_ZERO:");
-	codeBuffer.emit("call void (i8*) @print(i8* getelementptr ([22 x i8], [22 x i8]* @.zero_div_string, i32 0, i32 0))");
-	codeBuffer.emit("call void (i32) @exit(i32 0)");
+    codeBuffer.emit("define void @checkDivisionByZero(i32) {");
+    codeBuffer.emit("%valid = icmp eq i32 %0, 0");
+    codeBuffer.emit("br i1 %valid, label %EXIT, label %CONT");
+    codeBuffer.emit("EXIT:");
+    codeBuffer.emit("call void @print(i8* getelementptr([23 x i8], [23 x i8]* @.zero_div_string, i32 0, i32 0))");
+    codeBuffer.emit("call void @exit(i32 0)");
+    codeBuffer.emit("ret void");
+    codeBuffer.emit("CONT:");
+    codeBuffer.emit("ret void");
+    codeBuffer.emit("}");
 }
