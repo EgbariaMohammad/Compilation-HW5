@@ -154,6 +154,11 @@ Statement :
 	| RETURN SC { codeBuffer.emit("ret i32 0"); }
 	| IF LPAREN Exp A RPAREN PUSH_SCOPE Statement
 	{
+		if($3->getType() != "BOOL")
+		{
+			output::errorMismatch(yylineno);
+			exit(0);
+		}
 		codeBuffer.emit("br label %" + $3->getFalseLabel());
 		codeBuffer.emit($3->getFalseLabel() + ":");
 		scopeManager.popScope();
@@ -165,6 +170,11 @@ Statement :
 		codeBuffer.emit("br label %" + ifElseLabels.back());
 		codeBuffer.emit($3->getFalseLabel() + ":");
 	} Statement {
+		if($3->getType() != "BOOL")
+		{
+			output::errorMismatch(yylineno);
+			exit(0);
+		}
 		codeBuffer.emit("br label %" + ifElseLabels.back());
 		codeBuffer.emit(ifElseLabels.back() + ":");
 		ifElseLabels.pop_back();
@@ -176,6 +186,11 @@ Statement :
 	}
 	Statement
 	{
+		if($5->getType() != "BOOL")
+		{
+			output::errorMismatch(yylineno);
+			exit(0);
+		}
 		codeBuffer.emit("br label %" + scopeManager.getLastScopeStartLabel());
 		codeBuffer.emit($5->getFalseLabel() + ":");
 		codeBuffer.emit("br label %" + scopeManager.getLastScopeEndLabel());
