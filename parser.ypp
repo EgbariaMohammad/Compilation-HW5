@@ -19,6 +19,11 @@
 	void zeroExtendByte(string resultRegister, Symbol* symbol);
 	void checkIfScopeIsWhileLoop();
 	void printDivByZeroIRCode();
+	void printDeclarations();
+	void definetPrintFunc();
+	void definePrintiFunction();
+	void defineReadiFunction();
+	int defineMainFunction();
 
     // *** Flex externals *** //
 	extern int yylex();
@@ -559,42 +564,13 @@ int main()
 	scopeManager.insertSymbol(shared_ptr<Function>(new Function("printi", scopeManager.getOffset(), "VOID", {"INT"})));
 	scopeManager.insertSymbol(shared_ptr<Function>(new Function("readi", scopeManager.getOffset(), "INT", {"INT"})));
 
-	codeBuffer.emitGlobal("declare i32 @printf(i8*, ...)");
-	codeBuffer.emitGlobal("declare i32 @scanf(i8*, ...)");
-	codeBuffer.emitGlobal("declare void @exit(i32)");
-	codeBuffer.emitGlobal("@.int_specifier = constant [4 x i8] c\"%d\\0A\\00\"");
-	codeBuffer.emitGlobal("@.int_specifier_scan = constant [3 x i8] c\"%d\\00\"");
-	codeBuffer.emitGlobal("@.str_specifier = constant [4 x i8] c\"%s\\0A\\00\"");
-	codeBuffer.emitGlobal("@.zero_div_string = constant [23 x i8] c\"Error division by zero\\00\""); // ""
-
-	codeBuffer.emit("define void @print(i8*) {");
-	codeBuffer.emit("%spec_ptr = getelementptr [4 x i8], [4 x i8]* @.str_specifier, i32 0, i32 0");
-	codeBuffer.emit("call i32 (i8*, ...) @printf(i8* %spec_ptr, i8* %0)");
-	codeBuffer.emit("ret void");
-	codeBuffer.emit("}");
-
-	codeBuffer.emit("define void @printi(i32) {");
-	codeBuffer.emit("%spec_ptr = getelementptr [4 x i8], [4 x i8]* @.int_specifier, i32 0, i32 0");
-	codeBuffer.emit("call i32 (i8*, ...) @printf(i8* %spec_ptr, i32 %0)");
-	codeBuffer.emit("ret void");
-	codeBuffer.emit("}");
-
-	codeBuffer.emit("define i32 @readi(i32) {");
-	codeBuffer.emit("%ret_val = alloca i32");
-	codeBuffer.emit("%spec_ptr = getelementptr [3 x i8], [3 x i8]* @.int_specifier_scan, i32 0, i32 0");
-	codeBuffer.emit("call i32 (i8*, ...) @scanf(i8* %spec_ptr, i32* %ret_val)");
-	codeBuffer.emit("%val = load i32, i32* %ret_val");
-	codeBuffer.emit("ret i32 %val");
-	codeBuffer.emit("}");
-
+	printDeclarations();
+	definetPrintFunc();
+	definePrintiFunction();
+	defineReadiFunction();
 	printDivByZeroIRCode();
 
-	codeBuffer.emit("define i32 @main(){");
-	// alloca 100 local variables on stack :
-	codeBuffer.emit("%stack_ptr = alloca [100 x i32]");
-	int parserReturnVal = yyparse();
-	codeBuffer.emit("ret i32 0");
-	codeBuffer.emit("}");
+	int parserReturnVal =  defineMainFunction();
 
 	if (!parserReturnVal)
 	{
@@ -690,4 +666,51 @@ void printDivByZeroIRCode(){
     codeBuffer.emit("CONT:");
     codeBuffer.emit("ret void");
     codeBuffer.emit("}");
+}
+
+
+void printDeclarations()
+{
+	codeBuffer.emitGlobal("declare i32 @printf(i8*, ...)");
+	codeBuffer.emitGlobal("declare i32 @scanf(i8*, ...)");
+	codeBuffer.emitGlobal("declare void @exit(i32)");
+	codeBuffer.emitGlobal("@.int_specifier = constant [4 x i8] c\"%d\\0A\\00\"");
+	codeBuffer.emitGlobal("@.int_specifier_scan = constant [3 x i8] c\"%d\\00\"");
+	codeBuffer.emitGlobal("@.str_specifier = constant [4 x i8] c\"%s\\0A\\00\"");
+	codeBuffer.emitGlobal("@.zero_div_string = constant [23 x i8] c\"Error division by zero\\00\""); // ""
+}
+
+void definetPrintFunc(){
+	codeBuffer.emit("define void @print(i8*) {");
+	codeBuffer.emit("%spec_ptr = getelementptr [4 x i8], [4 x i8]* @.str_specifier, i32 0, i32 0");
+	codeBuffer.emit("call i32 (i8*, ...) @printf(i8* %spec_ptr, i8* %0)");
+	codeBuffer.emit("ret void");
+	codeBuffer.emit("}");
+}
+
+void definePrintiFunction(){
+	codeBuffer.emit("define void @printi(i32) {");
+	codeBuffer.emit("%spec_ptr = getelementptr [4 x i8], [4 x i8]* @.int_specifier, i32 0, i32 0");
+	codeBuffer.emit("call i32 (i8*, ...) @printf(i8* %spec_ptr, i32 %0)");
+	codeBuffer.emit("ret void");
+	codeBuffer.emit("}");
+}
+
+void defineReadiFunction(){
+	codeBuffer.emit("define i32 @readi(i32) {");
+	codeBuffer.emit("%ret_val = alloca i32");
+	codeBuffer.emit("%spec_ptr = getelementptr [3 x i8], [3 x i8]* @.int_specifier_scan, i32 0, i32 0");
+	codeBuffer.emit("call i32 (i8*, ...) @scanf(i8* %spec_ptr, i32* %ret_val)");
+	codeBuffer.emit("%val = load i32, i32* %ret_val");
+	codeBuffer.emit("ret i32 %val");
+	codeBuffer.emit("}");
+}
+
+int defineMainFunction(){
+	codeBuffer.emit("define i32 @main(){");
+	codeBuffer.emit("%stack_ptr = alloca [100 x i32]");
+	int parserReturnVal = yyparse();
+	codeBuffer.emit("ret i32 0");
+	codeBuffer.emit("}");
+	return parserReturnVal;
 }
